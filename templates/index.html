@@ -234,6 +234,9 @@
             ></textarea>
 
             <div class="acciones">
+                <button class="btn-subir" onclick="pegarYSubir()" style="background: var(--morado);">
+                    Pegar y subir
+                </button>
                 <button class="btn-subir" onclick="procesar()">
                     Subir actividades
                 </button>
@@ -296,6 +299,20 @@
             status.textContent = msg;
             status.className = `status ${tipo}`;
             status.style.display = 'flex';
+        }
+
+        async function pegarYSubir() {
+            try {
+                const texto = await navigator.clipboard.readText();
+                if (!texto.trim()) {
+                    mostrarStatus('El portapapeles está vacío.', 'error');
+                    return;
+                }
+                document.getElementById('texto').value = texto;
+                procesar();
+            } catch (e) {
+                mostrarStatus('No se pudo leer el portapapeles. Pega manualmente.', 'error');
+            }
         }
 
     </script>
