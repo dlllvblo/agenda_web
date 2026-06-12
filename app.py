@@ -109,6 +109,41 @@ def obtener_estado_municipio(lat, lng):
         return p["NOM_ENT"], p["NOM_MUN"]
     return "", ""
 
+def resumir_actividad(texto_actividad):
+    """Reformula la actividad a estilo de reporte institucional. Fallback: texto original."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key or not texto_actividad.strip():
+        return texto_actividad
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 150,
+                "messages": [{
+                    "role": "user",
+                    "content": (
+                        "Reformula esta actividad de campo como una línea de reporte "
+                        "institucional en pasado, breve y formal (estilo: 'Se realizó reunión con...'). "
+                        "Conserva números de parcela, nombres de personas, ejidos y PKs. "
+                        "Responde SOLO con la frase, sin comillas ni explicación.\n\n"
+                        f"Actividad: {texto_actividad}"
+                    )
+                }],
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        resumen = resp.json()["content"][0]["text"].strip()
+        return resumen if resumen else texto_actividad
+    except Exception:
+        return texto_actividad
+
 def procesar_agenda(texto):
 
     # --- PROYECTO ---
@@ -255,7 +290,7 @@ def procesar_agenda(texto):
         partes = []
         if bdts_val:
             partes.append(bdts_val)
-        partes.append(linea_principal)
+        partes.append(resumir_actividad(linea_principal))
         if actividad_detalle and actividad_detalle != linea_principal:
             partes.append(actividad_detalle)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
