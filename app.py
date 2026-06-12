@@ -419,5 +419,42 @@ def procesar():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/sw.js")
+def service_worker():
+    # Servido desde raíz para que el scope del SW cubra toda la app
+    return app.send_static_file("sw.js")
+
+
+@app.route("/share", methods=["GET", "POST"])
+def share():
+    if request.method == "POST":
+        texto = (request.form.get("text") or request.form.get("title") or "").strip()
+    else:
+        texto = (request.args.get("text") or "").strip()
+
+    if not texto:
+        return "No llegó texto para procesar", 400
+
+    try:
+        filas = procesar_agenda(texto)
+        if not filas:
+            return "<h2>⚠️ No se encontraron actividades en el texto compartido</h2>", 400
+        total = subir_a_sheets(filas)
+        resumen_html = "".join(
+            f"<li>{f['FECHA Y HORA']} — {f['TIPO DE SOLICITUD'][:80]}</li>" for f in filas
+        )
+        return f"""
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>body{{font-family:sans-serif;padding:24px;background:#691B4F;color:white}}
+        .card{{background:white;color:#333;border-radius:16px;padding:20px}}</style></head>
+        <body><div class="card">
+        <h2>✅ {total} actividad(es) subida(s) a Sheets</h2>
+        <ul>{resumen_html}</ul>
+        </div></body></html>
+        """
+    except Exception as e:
+        return f"<h2>❌ Error: {e}</h2>", 500
+
+
 if __name__ == "__main__":
     app.run(debug=False)
