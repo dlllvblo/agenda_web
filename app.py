@@ -31,7 +31,7 @@ meses = {
     "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
 }
 
-# CAPA MUNICIPAL INEGI (carga única al arrancar)
+# CAPA MUNICIPAL INEGI
 def cargar_capas():
     base = os.path.join(os.path.dirname(__file__), "data")
     with open(os.path.join(base, "municipios_mx.geojson"), encoding="utf-8") as f:
@@ -79,13 +79,12 @@ def extraer_coordenadas(url_maps):
             return float(match.group(1)), float(match.group(2))
         return None
 
-    # Intentar sobre la URL original (cubre maps.google.com/?q=...)
+    # Intentar sobre la URL original
     coords = buscar_coords(url_maps)
     if coords:
         return coords
 
-    # Expandir el link corto y buscar en la URL final (aunque sea /sorry/ de Google,
-    # las coordenadas suelen venir en el parámetro continue=)
+    # Expandir el link corto y buscar en la URL final 
     try:
         resp = requests.get(url_maps, allow_redirects=True, timeout=10, headers=headers)
         coords = buscar_coords(resp.url)
@@ -137,9 +136,26 @@ def procesar_agenda(texto):
     else:
         fecha = ""
         fecha_solicitud = ""
+        for m in re.finditer(r"(\d{1,2})\s+de\s+(\w+)(?:\s+de\s+(\d{4}))?", texto, re.IGNORECASE):
+            mes_texto = m.group(2).lower()
+            if mes_texto in meses:
+                dia = m.group(1).zfill(2)
+                anio = m.group(3) if m.group(3) else str(datetime.now().year)
+                fecha = f"{dia}/{meses[mes_texto]}/{anio}"
+                fecha_dt = datetime.strptime(fecha, "%d/%m/%Y")
+                fecha_solicitud = (fecha_dt - timedelta(days=1)).strftime("%d/%m/%Y")
+                break
 
     # --- BLOQUES ---
     bloques = re.split(r"\n\d+[\.-]\s*", texto)[1:]
+    if not bloques:
+        cuerpo = "\n".join(
+            l for l in texto.splitlines()
+            if not re.match(r"\s*Proyecto\b", l, re.IGNORECASE)
+            and not re.search(r"\b\d{1,2}\s+de\s+(?:%s)\b" % "|".join(meses), l, re.IGNORECASE)
+        ).strip()
+        if cuerpo:
+            bloques = [cuerpo]
     filas = []
 
     for bloque in bloques:
@@ -148,10 +164,13 @@ def procesar_agenda(texto):
         # HORA
         match_hora = re.search(r"(\d{1,2}:\d{2})\s*hrs?\s*[-–—]", bloque, re.IGNORECASE)
         hora_label_match = re.search(r"Hora:\s*(\d{1,2}:\d{2})", bloque, re.IGNORECASE)
+        hora_sola_match = re.search(r"(\d{1,2}:\d{2})\s*hrs?\b", bloque, re.IGNORECASE)
         if match_hora:
             hora_txt = match_hora.group(1).strip()
         elif hora_label_match:
             hora_txt = hora_label_match.group(1).strip()
+        elif hora_sola_match:
+            hora_txt = hora_sola_match.group(1).strip()
         else:
             hora_txt = ""
 
@@ -161,6 +180,10 @@ def procesar_agenda(texto):
             linea_principal = match_inline.group(1).strip()
         else:
             linea_principal = bloque.splitlines()[0].strip()
+        if re.fullmatch(r'\d{1,2}:\d{2}\s*hrs?\.?', linea_principal, re.IGNORECASE):
+            lineas_bloque = [l.strip() for l in bloque.splitlines() if l.strip()]
+            if len(lineas_bloque) > 1:
+                linea_principal = lineas_bloque[1]
 
         # CAMBIO 1: cortar linea_principal antes del primer campo conocido
         linea_principal = re.split(
@@ -197,7 +220,7 @@ def procesar_agenda(texto):
 
         # ASISTENTES
         asistentes = re.search(
-            r"(?:Asistentes?|Asiste|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
+            r"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
             bloque, re.IGNORECASE
         )
 
