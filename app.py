@@ -359,7 +359,7 @@ def procesar_agenda(texto):
                 ),
                 "FECHA Y HORA": f"{fecha} {hora_txt}",
                 "DEPENDENCIAS PARTICIPANTES": (
-                    asistentes.group(1).strip() if asistentes else ""
+                    asistentes.group(1).strip().rstrip('.') if asistentes else ""
                 ),
                 "ACTIVIDADES  DESARROLLADAS": acts_desarrolladas,
             }
