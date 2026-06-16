@@ -275,6 +275,11 @@ def procesar_agenda(texto):
             lat, lng = extraer_coordenadas(url)
             if lat is not None:
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
+        # UBICACIONES MÚLTIPLES
+        ubicaciones_multi = re.findall(
+            r'^\s*[a-zA-Z]\)\s*(.+?):\s*(https?://\S+)',
+            bloque, re.MULTILINE
+        )
 
         # BDTs
         bdts = re.search(
@@ -327,38 +332,54 @@ def procesar_agenda(texto):
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
 
-        fila = {
-            "FECHA DE SOLICITUD": fecha_solicitud,
-            "SOLICITANTE": "SEDATU",
-            "MEDIO DE SOLICITUD": "WhatsApp",
-            "TIPO DE SOLICITUD": actividad_txt,
-            "PROYECTO FERROVIARIO": proyecto_final,
-            "UBICACIÓN": url,
-            "TIPO DE PROPIEDAD": "",
-            "FRENTE": (
-                re.sub(r'\b(\d+)\b', r'F\1', frente.group(1).strip())
-                if frente and frente.group(1).strip().upper() != "N/A" else ""
-            ),
-            "POLÍGONO": (
-                poligono.group(1).strip()
-                if poligono and poligono.group(1).strip().upper() != "N/A" else ""
-            ),
-            "ESTADO": estado_geo.upper(),
-            "MUNICIPIO": municipio if municipio else municipio_geo,
-            "EJIDO": ejido,
-            "NÚCLEO AGRARIO": (nucleo.group(1).strip() if nucleo else ""),
-            "PROPIETARIOS PROPIEDAD PRIVADA": (
-                (particular.group(1) or particular.group(2) or "").strip()
-                if particular else ""
-            ),
-            "FECHA Y HORA": f"{fecha} {hora_txt}",
-            "DEPENDENCIAS PARTICIPANTES": (
-                asistentes.group(1).strip() if asistentes else ""
-            ),
-            "ACTIVIDADES  DESARROLLADAS": actividades_desarrolladas,
-        }
+        def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
+            return {
+                "FECHA DE SOLICITUD": fecha_solicitud,
+                "SOLICITANTE": "SEDATU",
+                "MEDIO DE SOLICITUD": "WhatsApp",
+                "TIPO DE SOLICITUD": actividad_txt,
+                "PROYECTO FERROVIARIO": proyecto_final,
+                "UBICACIÓN": ubic_url,
+                "TIPO DE PROPIEDAD": "",
+                "FRENTE": (
+                    re.sub(r'\b(\d+)\b', r'F\1', frente.group(1).strip())
+                    if frente and frente.group(1).strip().upper() != "N/A" else ""
+                ),
+                "POLÍGONO": (
+                    poligono.group(1).strip()
+                    if poligono and poligono.group(1).strip().upper() != "N/A" else ""
+                ),
+                "ESTADO": est_geo.upper(),
+                "MUNICIPIO": municipio if municipio else mun_g,
+                "EJIDO": ejido,
+                "NÚCLEO AGRARIO": (nucleo.group(1).strip() if nucleo else ""),
+                "PROPIETARIOS PROPIEDAD PRIVADA": (
+                    (particular.group(1) or particular.group(2) or "").strip()
+                    if particular else ""
+                ),
+                "FECHA Y HORA": f"{fecha} {hora_txt}",
+                "DEPENDENCIAS PARTICIPANTES": (
+                    asistentes.group(1).strip() if asistentes else ""
+                ),
+                "ACTIVIDADES  DESARROLLADAS": acts_desarrolladas,
+            }
 
-        filas.append(fila)
+        if ubicaciones_multi:
+            for nombre_punto, url_punto in ubicaciones_multi:
+                nombre_punto = nombre_punto.strip()
+                url_punto = url_punto.strip()
+                est_p, mun_p = "", ""
+                if "goo.gl" in url_punto or "google.com" in url_punto:
+                    lat, lng = extraer_coordenadas(url_punto)
+                    if lat is not None:
+                        est_p, mun_p = obtener_estado_municipio(lat, lng)
+                acts_punto = (
+                    f"{nombre_punto} — {actividades_desarrolladas}"
+                    if actividades_desarrolladas else nombre_punto
+                )
+                filas.append(armar_fila(url_punto, est_p, mun_p, acts_punto))
+        else:
+            filas.append(armar_fila(url, estado_geo, municipio_geo, actividades_desarrolladas))
 
     return filas
 
