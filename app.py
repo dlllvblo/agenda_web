@@ -255,7 +255,7 @@ def procesar_agenda(texto):
 
         # ASISTENTES
         asistentes = re.search(
-            r"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
+            r"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n(?:es)?|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
             bloque, re.IGNORECASE
         )
 
