@@ -109,11 +109,17 @@ def obtener_estado_municipio(lat, lng):
         return p["NOM_ENT"], p["NOM_MUN"]
     return "", ""
 
-def resumir_actividad(texto_actividad):
-    """Reformula la actividad a estilo de reporte institucional. Fallback: texto original."""
+def resumir_actividad(linea, detalle=""):
+    """Resume la actividad en UNA línea técnica y concisa, combinando línea principal
+       y campo Actividad si existe. Fallback: texto original."""
+    base = (linea or "").strip()
+    extra = (detalle or "").strip()
+    if extra and extra != base:
+        base = f"{base}. {extra}" if base else extra
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key or not texto_actividad.strip():
-        return texto_actividad
+    if not api_key or not base:
+        return base
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -124,25 +130,18 @@ def resumir_actividad(texto_actividad):
             },
             json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 150,
-                "messages": [{
-                    "role": "user",
-                    "content": (
-                        "Reformula esta actividad de campo como una línea de reporte "
-                        "institucional en pasado, breve y formal (estilo: 'Se realizó reunión con...'). "
-                        "Conserva números de parcela, nombres de personas, ejidos y PKs. "
-                        "Responde SOLO con la frase, sin comillas ni explicación.\n\n"
-                        f"Actividad: {texto_actividad}"
-                    )
-                }],
+                "max_tokens": 120,
+                "temperature": 0.7,
+                "system": SYSTEM_RESUMEN,
+                "messages": [{"role": "user", "content": f"Actividad: {base}"}],
             },
             timeout=20,
         )
         resp.raise_for_status()
         resumen = resp.json()["content"][0]["text"].strip()
-        return resumen if resumen else texto_actividad
+        return resumen if resumen else base
     except Exception:
-        return texto_actividad
+        return base
 
 CORRECCIONES = {
     "palacio municipal": "Palacio Municipal",
@@ -154,6 +153,21 @@ CORRECCIONES = {
     "registro agrario nacional": "Registro Agrario Nacional",
 }
 
+SYSTEM_RESUMEN = (
+    "Redactas UNA sola línea de reporte institucional para actividades de campo "
+    "de proyectos ferroviarios de SEDATU.\n"
+    "Reglas:\n"
+    "- En pasado, formal, técnica pero clara y directa; concisa (máx. 25 palabras).\n"
+    "- Elige el verbo según la acción REAL, no uses siempre la misma fórmula. Guía: "
+    "firma→'Se firmó'; reunión→'Se sostuvo reunión'; recorrido→'Se realizó recorrido'; "
+    "acercamiento→'Se efectuó acercamiento'; entrega→'Se entregó'; notificación→'Se notificó'; "
+    "verificación→'Se verificó'; levantamiento→'Se levantó'.\n"
+    "- Conserva TEXTUAL: números de parcela (ej. MQ-SBA-P109), PKs (ej. pk 44+900), "
+    "nombres de personas, ejidos/núcleos agrarios y dependencias.\n"
+    "- No inventes datos que no estén. No agregues introducción ni explicación.\n"
+    "- Responde SOLO con la línea, sin comillas."
+)
+
 def normalizar_capitalizacion(texto):
     if not texto:
         return texto
@@ -162,7 +176,7 @@ def normalizar_capitalizacion(texto):
         texto = re.sub(r'\b' + re.escape(mal) + r'\b', bien, texto, flags=re.IGNORECASE)
     # capitalizar minúsculas
     texto = re.sub(
-        r'\b(Palacio Municipal|Presidencia Municipal|Municipio(?: de)?|Ejido)\s+([a-záéíóúñ]+)',
+        r'\b(Palacio Municipal|Presidencia Municipal|Municipio(?: de)?|Ejido(?: de)?)\s+(?!(?:de|del)\b)([a-záéíóúñ]+)',
         lambda m: f"{m.group(1)} {m.group(2).capitalize()}",
         texto
     )
@@ -321,9 +335,7 @@ def procesar_agenda(texto):
         partes = []
         if bdts_val:
             partes.append(bdts_val)
-        partes.append(resumir_actividad(linea_principal))
-        if actividad_detalle and actividad_detalle != linea_principal:
-            partes.append(actividad_detalle)
+        partes.append(resumir_actividad(linea_principal, actividad_detalle))
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
         # EJIDO
@@ -334,7 +346,7 @@ def procesar_agenda(texto):
         nucleo = re.search(r"Núcleo Agrario:\s*(.*)", bloque, re.IGNORECASE)
         if not nucleo:
             ejido_inline = re.search(
-                r'\bEjido\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\)|,|\.|\n|$)',
+                r'\b(?:Comisariado\s+Ejidal\s+de|Ejido\s+de|Ejido)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\)|,|\.|\n|$)',
                 linea_principal
             )
             if ejido_inline:
@@ -355,6 +367,15 @@ def procesar_agenda(texto):
             )
             if propietario_inline:
                 prop_txt = propietario_inline.group(1).strip()
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        if not particular:
+            titulo_inline = re.search(
+                r'\b([Ss][Rr][Aa]|[Ss][Rr])\.?,?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)',
+                linea_principal
+            )
+            if titulo_inline:
+                tit_norm = "Sra." if titulo_inline.group(1).lower().startswith("sra") else "Sr."
+                prop_txt = f"{tit_norm} {titulo_inline.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
 
