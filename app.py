@@ -144,7 +144,32 @@ def resumir_actividad(texto_actividad):
     except Exception:
         return texto_actividad
 
+CORRECCIONES = {
+    "palacio municipal": "Palacio Municipal",
+    "presidencia municipal": "Presidencia Municipal",
+    "comisariado ejidal": "Comisariado Ejidal",
+    "comisariado de bienes comunales": "Comisariado de Bienes Comunales",
+    "nucleo agrario": "Núcleo Agrario",
+    "núcleo agrario": "Núcleo Agrario",
+    "registro agrario nacional": "Registro Agrario Nacional",
+}
+
+def normalizar_capitalizacion(texto):
+    if not texto:
+        return texto
+    # frases institucionales conocidas (case-insensitive)
+    for mal, bien in CORRECCIONES.items():
+        texto = re.sub(r'\b' + re.escape(mal) + r'\b', bien, texto, flags=re.IGNORECASE)
+    # capitalizar minúsculas
+    texto = re.sub(
+        r'\b(Palacio Municipal|Presidencia Municipal|Municipio(?: de)?|Ejido)\s+([a-záéíóúñ]+)',
+        lambda m: f"{m.group(1)} {m.group(2).capitalize()}",
+        texto
+    )
+    return texto
+
 def procesar_agenda(texto):
+    texto = texto.replace('*', '')
 
     # --- PROYECTO ---
     proyecto_match = re.search(r"Proyecto\s*(.*)", texto, re.IGNORECASE)
@@ -197,7 +222,7 @@ def procesar_agenda(texto):
         bloque = bloque.replace('\xa0', ' ').strip()
 
         # HORA
-        match_hora = re.search(r"(\d{1,2}:\d{2})\s*hrs?\s*[-–—]", bloque, re.IGNORECASE)
+        match_hora = re.search(r"(\d{1,2}:\d{2})\s*(?:hrs?)?\s*[-–—]", bloque, re.IGNORECASE)
         hora_label_match = re.search(r"Hora:\s*(\d{1,2}:\d{2})", bloque, re.IGNORECASE)
         hora_sola_match = re.search(r"(\d{1,2}:\d{2})\s*hrs?\b", bloque, re.IGNORECASE)
         if match_hora:
@@ -210,12 +235,12 @@ def procesar_agenda(texto):
             hora_txt = ""
 
         # LÍNEA PRINCIPAL
-        match_inline = re.search(r"\d{1,2}:\d{2}\s*hrs?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
+        match_inline = re.search(r"\d{1,2}:\d{2}\s*(?:hrs?)?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
         if match_inline:
             linea_principal = match_inline.group(1).strip()
         else:
             linea_principal = bloque.splitlines()[0].strip()
-        if re.fullmatch(r'\d{1,2}:\d{2}\s*hrs?\.?', linea_principal, re.IGNORECASE):
+        if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?)?\.?', linea_principal, re.IGNORECASE):
             lineas_bloque = [l.strip() for l in bloque.splitlines() if l.strip()]
             if len(lineas_bloque) > 1:
                 linea_principal = lineas_bloque[1]
@@ -226,9 +251,10 @@ def procesar_agenda(texto):
             linea_principal, maxsplit=1, flags=re.IGNORECASE
         )[0].strip()
 
-        linea_principal = re.sub(r'^\d{1,2}:\d{2}\s*hrs?\.?\s*[-–—]\s*', '', linea_principal, flags=re.IGNORECASE).strip()
+        linea_principal = re.sub(r'^\d{1,2}:\d{2}\s*(?:hrs?)?\.?\s*[-–—]\s*', '', linea_principal, flags=re.IGNORECASE).strip()
         linea_principal = re.sub(r'^[-–—\s]+', '', linea_principal).strip()
         linea_principal = re.sub(r'\.$', '', linea_principal).strip()
+        linea_principal = normalizar_capitalizacion(linea_principal)
 
         actividad_txt = linea_principal
 
