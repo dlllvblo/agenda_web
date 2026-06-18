@@ -565,13 +565,18 @@ def api_agenda():
             for d in str(f.get("DEPENDENCIAS PARTICIPANTES", "")).split(","):
                 d = d.strip()
                 if d: dep[d] += 1
-            fh = str(f.get("FECHA Y HORA", "")).split()[0]
-            if fh: serie[fh] += 1
+            partes_fh = str(f.get("FECHA Y HORA", "")).split()
+            if partes_fh:
+                serie[partes_fh[0]] += 1
+
+        def hora_de(fh):
+            p = str(fh).split()
+            return p[-1] if len(p) > 1 else ""   # solo hora si hay "fecha hora"
 
         return jsonify({
             "carga": dict(carga), "edo": dict(edo), "dep": dict(dep), "serie": dict(serie),
             "agenda": [{
-                "hora":  str(f.get("FECHA Y HORA","")).split()[-1],
+                "hora":  hora_de(f.get("FECHA Y HORA","")),
                 "code":  inv.get(f.get("PROYECTO FERROVIARIO",""), "—"),
                 "mun":   f.get("MUNICIPIO",""),
                 "act":   f.get("TIPO DE SOLICITUD",""),
@@ -586,7 +591,7 @@ def api_agenda():
 
 @app.route("/dashboard")
 def dashboard():
-    return render_template("agenda_dashboard.html")
+    return render_template("dashboard.html")
 
 if __name__ == "__main__":
     app.run(debug=False)
