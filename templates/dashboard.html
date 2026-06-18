@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>agenda_web · Tablero de Agenda</title>
+<title>Agenda · Tablero de Actividades</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#130D0C; --panel:#1E1513; --panel-2:#241915;
-    --board:#100B0A; --line:#39271F; --line-soft:#2C1E19;
+    --bg:#221A17; --panel:#2E2420; --panel-2:#382B25;
+    --board:#1C1512; --line:#4A382F; --line-soft:#3A2C26;
     --guinda-deep:#6E152E; --guinda:#A21E42;
     --verde-deep:#245C4F; --verde:#2F8270;
     --dorado:#BC945A; --dorado-bright:#D7AE6E; --arena:#DEC9A2;
@@ -135,7 +135,7 @@
           <rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4M7 17h7"/>
         </svg>
       </div>
-      <div><h1>agenda_web</h1><div class="sub">Tablero de Agenda</div></div>
+      <div><h1>Agenda</h1><div class="sub">Tablero de Actividades</div></div>
     </div>
     <div class="spacer"></div>
     <div class="ventana" id="ventana">—</div>
@@ -185,7 +185,7 @@
     <div class="panel span7">
       <div class="panel-head"><h2>Actividades recientes</h2><span class="live" style="font-size:.58rem"><span class="dot"></span></span></div>
       <div class="board">
-        <div class="board-head"><span>Hora</span><span>Proy</span><span>Destino · Actividad</span><span style="text-align:right">Estado</span></div>
+        <div class="board-head"><span>Hora</span><span>Proyecto</span><span>Destino // Actividad</span><span style="text-align:right">Estatus</span></div>
         <div class="board-body" id="board"></div>
       </div>
     </div>
@@ -207,7 +207,7 @@
 
   <footer>
     agenda_web · Parser de agendas de WhatsApp &rarr; Google Sheets &nbsp;&middot;&nbsp;
-    <span class="mono">SEDATU — Coordinación de campo ferroviario</span>
+    <span class="mono">Registro Agrario Nacional · Dirección General Territorial</span>
   </footer>
 
 <script>
@@ -330,13 +330,13 @@ Chart.defaults.font.family="'IBM Plex Mono', monospace";Chart.defaults.font.size
 const GRID='rgba(255,255,255,.05)';
 const tip={backgroundColor:'#241915',borderColor:'#39271F',borderWidth:1,titleColor:'#DEC9A2',bodyColor:'#F4EADD',
   padding:11,cornerRadius:9,titleFont:{family:"'Space Grotesk'",weight:'600'},boxPadding:4};
-const DEP_COLORS=['#A21E42','#2F8270','#D7AE6E','#DEC9A2','#6E152E','#3E9B86','#B98142','#8E9B7A','#9C6B4E','#5E7C72','#C77','#7A8E9B'];
+const DEP_COLORS=['#C8385F','#46A892','#E0B978','#EAD7B0','#9B2A48','#5BBFA6','#CE9A5A','#A6B492','#BC8568','#7A9E92','#D98080','#94A8B5'];
 let stateChart,depChart,timeChart;
 
 function buildCharts(){
   stateChart=new Chart(document.getElementById('stateChart'),{type:'bar',
     data:{labels:[],datasets:[{data:[],
-      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,c.chart.width,0);g.addColorStop(0,'#245C4F');g.addColorStop(1,'#2F8270');return g;},
+      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,c.chart.width,0);g.addColorStop(0,'#2F8270');g.addColorStop(1,'#46A892');return g;},
       borderRadius:6,barThickness:16}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tip},
       scales:{x:{grid:{color:GRID},border:{display:false},beginAtZero:true,ticks:{precision:0}},y:{grid:{display:false},border:{color:'#39271F'}}}}});
