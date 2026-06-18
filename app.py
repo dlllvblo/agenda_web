@@ -625,15 +625,33 @@ def api_agenda():
         def hora_de(fh):
             p = str(fh).split()
             return p[-1] if len(p) > 1 else ""
+
+        def construir_agenda(filas, piso, tope, fdt, hde, inv):
+            items = []
+            for f in filas:
+                d = fdt(f.get("FECHA Y HORA", ""))
+                # solo las de la ventana de 3 días
+                if piso is not None and (d is None or d < piso or d > tope):
+                    continue
+                hora = hde(f.get("FECHA Y HORA", ""))
+                # clave de orden: fecha + hora (las que no tienen hora van al final del día)
+                clave = (d, hora if hora else "00:00")
+                items.append((clave, {
+                    "hora":  hora if hora else "--:--",
+                    "code":  inv.get(f.get("PROYECTO FERROVIARIO", ""), "—"),
+                    "mun":   f.get("MUNICIPIO", ""),
+                    "act":   f.get("TIPO DE SOLICITUD", ""),
+                }))
+            # ordena por (fecha, hora) descendente = más reciente primero
+            items.sort(key=lambda x: x[0], reverse=True)
+            return [it[1] for it in items[:10]]
             
         return jsonify({
-            "carga": dict(carga), "edo": dict(edo), "dep": dict(dep), "serie": dict(serie),
-            "agenda": [{
-                "hora":  hora_de(f.get("FECHA Y HORA","")),
-                "code":  inv.get(f.get("PROYECTO FERROVIARIO",""), "—"),
-                "mun":   f.get("MUNICIPIO",""),
-                "act":   f.get("TIPO DE SOLICITUD",""),
-            } for f in filas][-10:],
+            "carga": dict(carga),
+            "edo": dict(edo),
+            "dep": dict(dep),
+            "serie": dict(serie),
+            "agenda": construir_agenda(filas, fecha_piso, fecha_tope, fecha_dt, hora_de, inv),
         })
     except Exception as e:
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500

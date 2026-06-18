@@ -215,6 +215,32 @@
             .acciones { flex-direction: column; }
             .btn-limpiar { width: 100%; }
         }
+
+        .link-dashboard {
+            position: fixed;
+            bottom: 80px;
+            right: 28px;
+            color: whitesmoke;
+            font-family: 'Source Sans 3', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-decoration: none;
+            border-bottom: 1.5px solid rgba(245,245,245,0.5);
+            padding-bottom: 2px;
+            transition: color 0.2s, border-color 0.2s;
+            z-index: 100;
+        }
+
+        .link-dashboard:hover {
+            color: var(--arena);
+            border-color: var(--arena);
+        }
+
+        @media (max-width: 480px) {
+            .link-dashboard { bottom: 70px; right: 18px; font-size: 13px; }
+        }
+
     </style>
 </head>
 <body>
@@ -250,12 +276,7 @@
         <img src="/static/footer.png" style="max-width: 400px; width: 80%;">
     </div>
 
-    <a href="/dashboard" class="fab-dashboard" title="Ver tablero de actividades">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/>
-        </svg>
-        <span>Tablero</span>
-    </a>
+    <a href="/dashboard" class="link-dashboard">Ver Dashboard</a>
 
     <script>
         async function procesar() {
