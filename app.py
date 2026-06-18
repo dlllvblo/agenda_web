@@ -183,6 +183,7 @@ def normalizar_capitalizacion(texto):
     return texto
 
 def procesar_agenda(texto):
+    texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
 
     # --- PROYECTO ---
@@ -221,7 +222,7 @@ def procesar_agenda(texto):
                 break
 
     # --- BLOQUES ---
-    bloques = re.split(r"\n\d+[\.-]\s*", texto)[1:]
+    bloques = re.split(r"\n\s*\d+[\.-]\s*", texto)[1:]
     if not bloques:
         cuerpo = "\n".join(
             l for l in texto.splitlines()
@@ -285,6 +286,12 @@ def procesar_agenda(texto):
             r"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=\s+(?:BDTs?|Pol[ií]gonos?|Asistentes?|Asiste|Ubicaci[oó]n|Ejido|Municipio|Parcelas):|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
+        # Fallback inline
+        if not frente:
+            frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
+            if frente_inline:
+                num = frente_inline.group(1)
+                frente = type('_', (), {'group': lambda self, n: num})()
 
         # POLÍGONO
         poligono = re.search(r"Pol[ií]gono:\s*(.*)", bloque, re.IGNORECASE)
@@ -317,7 +324,7 @@ def procesar_agenda(texto):
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
         # UBICACIONES MÚLTIPLES
         ubicaciones_multi = re.findall(
-            r'^\s*[a-zA-Z]\)\s*(.+?):\s*(https?://\S+)',
+            r'^\s*(?:[a-zA-Z][\)\.]|[-•])\s*(.+?):\s*(https?://\S+)',
             bloque, re.MULTILINE
         )
 
