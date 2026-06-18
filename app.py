@@ -25,6 +25,11 @@ mapa_proyectos = {
         'TSLPS': 'SAN LUIS POTOSÍ - SALTILLO',
     }
 
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
 meses = {
     "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
     "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
@@ -418,7 +423,7 @@ def procesar_agenda(texto):
                 "DEPENDENCIAS PARTICIPANTES": (
                     asistentes.group(1).strip().rstrip('.') if asistentes else ""
                 ),
-                "ACTIVIDADES  DESARROLLADAS": acts_desarrolladas,
+                "ACTIVIDADES DESARROLLADAS": acts_desarrolladas,
             }
 
         if ubicaciones_multi:
@@ -441,12 +446,6 @@ def procesar_agenda(texto):
     return filas
 
 def subir_a_sheets(filas):
-    SCOPES = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    # Soporte para credenciales desde variable de entorno (Render) o archivo local
     creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     if creds_json:
         info = json.loads(creds_json)
@@ -533,6 +532,64 @@ def share():
     except Exception as e:
         return f"<h2>❌ Error: {e}</h2>", 500
 
+#=========================
+# API AGENDA
+#=========================
+
+@app.route("/api/agenda")
+def api_agenda():
+    from collections import defaultdict, Counter
+
+    # Mismas credenciales que subir_a_sheets()
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    if creds_json:
+        creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
+    else:
+        creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
+    client = gspread.Client(auth=creds)
+    ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
+
+    filas = ws.get_all_records()   # lista de dicts, header -> valor
+
+    # invierte tu mapa_proyectos: "1. AIFA - PACHUCA" -> "TAP"
+    inv = {v: k for k, v in mapa_proyectos.items()}
+
+    carga = Counter()
+    edo   = Counter()
+    dep   = Counter()
+    serie = defaultdict(int)
+
+    for f in filas:
+        proy = inv.get(f.get("PROYECTO FERROVIARIO", ""), "OTRO")
+        carga[proy] += 1
+        if f.get("ESTADO"):    edo[f["ESTADO"]] += 1
+        for d in str(f.get("DEPENDENCIAS PARTICIPANTES", "")).split(","):
+            d = d.strip()
+            if d: dep[d] += 1
+        fh = str(f.get("FECHA Y HORA", "")).split()[0]  # "18/06/2026"
+        if fh: serie[fh] += 1
+
+    return jsonify({
+        "carga": dict(carga),
+        "edo":   dict(edo),
+        "dep":   dict(dep),
+        "serie": dict(serie),
+        # para el tablero: las filas crudas con hora/municipio/actividad
+        "agenda": [{
+            "hora":  str(f.get("FECHA Y HORA","")).split()[-1],
+            "code":  inv.get(f.get("PROYECTO FERROVIARIO",""), "—"),
+            "mun":   f.get("MUNICIPIO",""),
+            "act":   f.get("TIPO DE SOLICITUD",""),
+        } for f in filas][-10:],
+    })
+
+#=========================
+# RUTA A DASHBOARD
+#=========================
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("agenda_dashboard.html")
 
 if __name__ == "__main__":
     app.run(debug=False)
