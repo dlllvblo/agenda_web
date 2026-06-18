@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agenda_web · Tablero de Agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#130D0C; --panel:#1E1513; --panel-2:#241915;
+    --board:#100B0A; --line:#39271F; --line-soft:#2C1E19;
+    --guinda-deep:#6E152E; --guinda:#A21E42;
+    --verde-deep:#245C4F; --verde:#2F8270;
+    --dorado:#BC945A; --dorado-bright:#D7AE6E; --arena:#DEC9A2;
+    --text:#F4EADD; --muted:#AB9381; --muted-2:#7C6557;
+    --radius:14px; --shadow:0 18px 40px -18px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1100px 560px at 82% -10%, rgba(188,148,90,.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 110%, rgba(162,30,66,.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh; padding:18px;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+  .topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 20px;margin-bottom:16px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .brand .logo{width:42px;height:42px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--dorado-bright),var(--dorado) 60%,var(--guinda-deep));
+    display:grid;place-items:center;box-shadow:0 0 0 1px rgba(222,201,162,.25),inset 0 1px 0 rgba(255,255,255,.14)}
+  .brand .logo svg{width:23px;height:23px}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1}
+  .brand .sub{font-size:.61rem;letter-spacing:.32em;color:var(--dorado-bright);text-transform:uppercase;margin-top:5px;font-weight:600}
+  .topbar .spacer{flex:1 1 40px}
+  .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
+  .ventana b{color:var(--arena);font-weight:600}
+  .live{display:flex;align-items:center;gap:9px;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .live .dot{width:9px;height:9px;border-radius:50%;background:var(--verde);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,130,112,.55)}70%{box-shadow:0 0 0 9px rgba(47,130,112,0)}100%{box-shadow:0 0 0 0 rgba(47,130,112,0)}}
+  .clock{font-size:.82rem;color:var(--arena);letter-spacing:.05em}
+  .refresh{display:inline-flex;align-items:center;gap:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;cursor:pointer;transition:border-color .18s}
+  .refresh:hover{border-color:var(--dorado)}
+  .refresh:focus-visible{outline:2px solid var(--dorado);outline-offset:2px}
+  .refresh svg{width:14px;height:14px}
+  .refresh.spin svg{animation:spin .8s linear}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
+  .panel-head h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--arena)}
+  .panel-head .tag{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2);letter-spacing:.1em;border:1px solid var(--line);padding:3px 8px;border-radius:6px}
+
+  .kpi{grid-column:span 3}
+  .kpi .top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+  .kpi .icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line);background:var(--bg)}
+  .kpi .icon svg{width:18px;height:18px}
+  .kpi .value{font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:700;line-height:1;letter-spacing:-.02em}
+  .kpi .label{font-size:.72rem;color:var(--muted);margin-top:8px}
+
+  .span7{grid-column:span 7}.span5{grid-column:span 5}.span8{grid-column:span 8}.span4{grid-column:span 4}.span12{grid-column:span 12}
+
+  .load-row{display:grid;grid-template-columns:26px 116px 1fr 86px;align-items:center;gap:14px;padding:11px 0;border-top:1px solid var(--line-soft)}
+  .load-row:first-child{border-top:none}
+  .load-rank{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:600;color:var(--muted-2);text-align:center}
+  .load-row.lead .load-rank{color:var(--dorado-bright)}
+  .load-id .code{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:.82rem;letter-spacing:.03em;display:flex;align-items:center;gap:7px}
+  .load-id .code::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--c)}
+  .load-id .ruta{font-size:.66rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .load-bar{position:relative;height:22px;border-radius:7px;background:var(--board);border:1px solid var(--line);overflow:hidden}
+  .load-bar .fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:6px;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--c) 50%,#000),var(--c));
+    transition:width 1s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 14px -2px var(--c)}
+  .load-bar .fill::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 12px,rgba(0,0,0,.10) 12px 14px)}
+  .load-num{text-align:right;font-family:'Space Grotesk',sans-serif}
+  .load-num .n{font-size:1.35rem;font-weight:700;color:var(--c)}
+  .load-num .pct{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2)}
+  .empty{color:var(--muted-2);font-size:.8rem;padding:20px 0;text-align:center}
+
+  .board{background:var(--board);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .board-head{display:grid;grid-template-columns:54px 60px 1fr 96px;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+  .board-body{max-height:300px;overflow:hidden}
+  .board-row{display:grid;grid-template-columns:54px 60px 1fr 96px;gap:12px;padding:11px 14px;align-items:center;border-bottom:1px solid var(--line-soft);animation:flap .45s ease}
+  .board-row:last-child{border-bottom:none}
+  @keyframes flap{from{opacity:0;transform:translateY(-5px) rotateX(-25deg)}to{opacity:1;transform:none}}
+  .board-row .hr{font-family:'IBM Plex Mono',monospace;font-size:.86rem;font-weight:600;color:var(--arena)}
+  .board-row .pc{font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:700;padding:2px 6px;border-radius:5px;color:#0d0908;text-align:center;letter-spacing:.02em}
+  .board-row .dest{font-size:.78rem;line-height:1.35}
+  .board-row .dest .mun{color:var(--text);font-weight:500}
+  .board-row .dest .act{color:var(--muted);font-size:.7rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .board-row .st{font-family:'IBM Plex Mono',monospace;font-size:.6rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:right}
+  .st.hoy{color:var(--guinda)}.st.prog{color:var(--verde)}.st.man{color:var(--dorado-bright)}
+
+  .chart-wrap{position:relative;width:100%}
+  .h-state{height:300px}.h-dough{height:260px}.h-time{height:230px}
+  .dough-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+  .dough-center .n{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;line-height:1}
+  .dough-center .t{font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);margin-top:4px}
+
+  .banner{display:none;background:rgba(162,30,66,.14);border:1px solid var(--guinda);color:var(--arena);
+    padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem;font-family:'IBM Plex Mono',monospace}
+
+  footer{margin-top:18px;text-align:center;font-size:.64rem;color:var(--muted-2);letter-spacing:.08em}
+  footer .mono{color:var(--muted)}
+
+  @media (max-width:1040px){.kpi{grid-column:span 6}.span7,.span5,.span8,.span4{grid-column:span 12}}
+  @media (max-width:560px){
+    body{padding:12px}.kpi{grid-column:span 12}
+    .load-row{grid-template-columns:22px 1fr 70px;gap:10px}
+    .load-bar{display:none}
+    .board-head,.board-row{grid-template-columns:46px 50px 1fr;}
+    .board-row .st{display:none}.board-head span:last-child{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#130D0C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4M7 17h7"/>
+        </svg>
+      </div>
+      <div><h1>agenda_web</h1><div class="sub">Tablero de Agenda</div></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="ventana" id="ventana">—</div>
+    <div class="live"><span class="dot"></span> Auto</div>
+    <div class="clock mono" id="clock">--:--:--</div>
+    <button class="refresh" id="refreshBtn" aria-label="Actualizar desde Google Sheets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#D7AE6E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      Actualizar
+    </button>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="grid">
+
+    <div class="panel kpi">
+      <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#D7AE6E" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div></div>
+      <div class="value mono" id="v-total">0</div>
+      <div class="label">Actividades (últimos 3 días)</div>
+    </div>
+    <div class="panel kpi">
+      <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#2F8270" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M19 3v18M5 7h14M5 12h14M5 17h14"/></svg></div></div>
+      <div class="value mono" id="v-proy">0</div>
+      <div class="label">Proyectos activos</div>
+    </div>
+    <div class="panel kpi">
+      <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#A21E42" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><path d="M16 8a3 3 0 0 1 0 6M18 20c0-2-1-3.5-2.5-4.3"/></svg></div></div>
+      <div class="value mono" id="v-dep">0</div>
+      <div class="label">Dependencias participantes</div>
+    </div>
+    <div class="panel kpi">
+      <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#DEC9A2" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></div></div>
+      <div class="value mono" id="v-edo">0</div>
+      <div class="label">Estados cubiertos</div>
+    </div>
+
+    <div class="panel span7">
+      <div class="panel-head"><h2>Carga por proyecto ferroviario</h2><span class="tag">ÚLTIMOS 3 DÍAS</span></div>
+      <div id="load"></div>
+    </div>
+
+    <div class="panel span5">
+      <div class="panel-head"><h2>Distribución por estado</h2><span class="tag">GEOCODIFICADO · INEGI</span></div>
+      <div class="chart-wrap h-state"><canvas id="stateChart"></canvas></div>
+    </div>
+
+    <div class="panel span7">
+      <div class="panel-head"><h2>Actividades recientes</h2><span class="live" style="font-size:.58rem"><span class="dot"></span></span></div>
+      <div class="board">
+        <div class="board-head"><span>Hora</span><span>Proy</span><span>Destino · Actividad</span><span style="text-align:right">Estado</span></div>
+        <div class="board-body" id="board"></div>
+      </div>
+    </div>
+
+    <div class="panel span5">
+      <div class="panel-head"><h2>Dependencias</h2><span class="tag">COORDINACIÓN</span></div>
+      <div class="chart-wrap h-dough">
+        <canvas id="depChart"></canvas>
+        <div class="dough-center"><div class="n mono" id="depTot">0</div><div class="t">menciones</div></div>
+      </div>
+    </div>
+
+    <div class="panel span12">
+      <div class="panel-head"><h2>Actividades por día</h2><span class="tag">VENTANA DE 3 DÍAS</span></div>
+      <div class="chart-wrap h-time"><canvas id="timeChart"></canvas></div>
+    </div>
+
+  </div>
+
+  <footer>
+    agenda_web · Parser de agendas de WhatsApp &rarr; Google Sheets &nbsp;&middot;&nbsp;
+    <span class="mono">SEDATU — Coordinación de campo ferroviario</span>
+  </footer>
+
+<script>
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const AUTO_REFRESH_MS = 60000;
+
+const PROYECTOS=[
+  {code:'TAP',  n:1, ruta:'AIFA – Pachuca',          c:'#A21E42'},
+  {code:'TMQ',  n:2, ruta:'México – Querétaro',       c:'#2F8270'},
+  {code:'TQI',  n:3, ruta:'Querétaro – Irapuato',     c:'#D7AE6E'},
+  {code:'TSNL', n:4, ruta:'Saltillo – Nuevo Laredo',  c:'#DEC9A2'},
+  {code:'TIGDL',n:5, ruta:'Irapuato – Guadalajara',   c:'#6E152E'},
+  {code:'TMLM', n:6, ruta:'Mazatlán – Los Mochis',    c:'#3E9B86'},
+  {code:'TQSLP',n:7, ruta:'Querétaro – San Luis P.',  c:'#B98142'},
+  {code:'TSLPS',n:8, ruta:'San Luis Potosí – Saltillo',c:'#8E9B7A'},
+  {code:'OTRO', n:'—', ruta:'Sin proyecto / no mapeado',c:'#7C6557'},
+];
+const COLOR_FALLBACK='#7C6557';
+function colorDe(code){ return (PROYECTOS.find(p=>p.code===code)||{}).c || COLOR_FALLBACK; }
+
+let DATA={carga:{},edo:{},dep:{},dias:[],serie:[],agenda:[]};
+
+function parseF(s){ const [d,m,a]=String(s).split('/'); return new Date(+a,+m-1,+d); }
+function titleCase(s){ return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); }
+
+async function generar(){
+  const banner=document.getElementById('banner');
+  banner.style.display='none';
+  try{
+    const r=await fetch("/api/agenda");
+    const j=await r.json();
+    if(j.error){
+      banner.style.display='block';
+      banner.textContent="Error al leer el Sheet: "+j.error;
+      console.error(j.error, j.trace);
+      DATA={carga:{},edo:{},dep:{},dias:[],serie:[],agenda:[]};
+      return;
+    }
+    const diasOrd=Object.keys(j.serie||{}).sort((x,y)=>parseF(x)-parseF(y)).slice(-10);
+    const dias=diasOrd.map(d=>{const f=parseF(d);return isNaN(f)?d:f.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});});
+    const serie=diasOrd.map(d=>j.serie[d]);
+    const agenda=(j.agenda||[]).map(a=>({hora:a.hora||'--:--', code:a.code||'—', mun:a.mun||'—', act:a.act||'', st:'prog'}));
+    DATA={carga:j.carga||{}, edo:j.edo||{}, dep:j.dep||{}, dias, serie, agenda};
+
+    const v=document.getElementById('ventana');
+    if(diasOrd.length){
+      v.innerHTML="Ventana: <b>"+diasOrd[0]+"</b> &rarr; <b>"+diasOrd[diasOrd.length-1]+"</b>";
+    }else{ v.textContent="Sin datos en la ventana"; }
+
+    if(DATA.carga.OTRO){
+      banner.style.display='block';
+      banner.textContent="Aviso: "+DATA.carga.OTRO+" actividad(es) sin proyecto reconocido en esta ventana.";
+    }
+  }catch(err){
+    banner.style.display='block';
+    banner.textContent="No se pudo conectar con /api/agenda. ¿Está corriendo Flask?";
+    console.error(err);
+    DATA={carga:{},edo:{},dep:{},dias:[],serie:[],agenda:[]};
+  }
+}
+
+function countUp(el,target,dur=1000,fmt=v=>Math.round(v).toLocaleString('es-MX')){
+  if(reduceMotion){el.textContent=fmt(target);return;}
+  const from=parseFloat(el.dataset.cur||'0'),start=performance.now();
+  (function tick(now){const t=Math.min(1,(now-start)/dur),e=1-Math.pow(1-t,3);
+    el.textContent=fmt(from+(target-from)*e);
+    if(t<1)requestAnimationFrame(tick);else el.dataset.cur=target;})(start);
+}
+
+function renderKPIs(){
+  const total=Object.values(DATA.carga).reduce((a,b)=>a+b,0);
+  countUp(document.getElementById('v-total'),total);
+  countUp(document.getElementById('v-proy'),Object.keys(DATA.carga).filter(k=>k!=='OTRO'&&DATA.carga[k]>0).length);
+  countUp(document.getElementById('v-dep'),Object.keys(DATA.dep).length);
+  countUp(document.getElementById('v-edo'),Object.keys(DATA.edo).filter(k=>k&&DATA.edo[k]>0).length);
+}
+
+function renderLoad(){
+  const el=document.getElementById('load');el.innerHTML='';
+  const codes=Object.keys(DATA.carga).filter(k=>DATA.carga[k]>0);
+  if(!codes.length){el.innerHTML='<div class="empty">Sin actividades en los últimos 3 días.</div>';return;}
+  const total=Object.values(DATA.carga).reduce((a,b)=>a+b,0)||1;
+  const max=Math.max(...codes.map(k=>DATA.carga[k]))||1;
+  const orden=codes.map(code=>{
+    const meta=PROYECTOS.find(p=>p.code===code)||{code,n:'—',ruta:code,c:COLOR_FALLBACK};
+    return Object.assign({}, meta, {v:DATA.carga[code]});
+  }).sort((a,b)=>b.v-a.v);
+  orden.forEach((p,i)=>{
+    const pct=Math.round(p.v/total*100);
+    const row=document.createElement('div');
+    row.className='load-row'+(i===0?' lead':'');row.style.setProperty('--c',p.c);
+    row.innerHTML='<div class="load-rank">'+String(i+1).padStart(2,'0')+'</div>'+
+      '<div class="load-id"><div class="code">'+p.code+'</div><div class="ruta">'+p.n+'. '+p.ruta+'</div></div>'+
+      '<div class="load-bar"><div class="fill"></div></div>'+
+      '<div class="load-num"><div class="n">'+p.v+'</div><div class="pct">'+pct+'% del total</div></div>';
+    el.appendChild(row);
+    requestAnimationFrame(()=>{row.querySelector('.fill').style.width=(p.v/max*100)+'%';});
+  });
+}
+
+function renderBoard(){
+  const el=document.getElementById('board');el.innerHTML='';
+  if(!DATA.agenda.length){el.innerHTML='<div class="empty">Sin registros recientes.</div>';return;}
+  const lab={hoy:'Hoy',man:'Mañana',prog:'Registrada'};
+  DATA.agenda.forEach((a,i)=>{
+    setTimeout(()=>{
+      const col=colorDe(a.code);
+      const row=document.createElement('div');row.className='board-row';
+      row.innerHTML='<div class="hr">'+a.hora+'</div>'+
+        '<div><span class="pc" style="background:'+col+'">'+a.code+'</span></div>'+
+        '<div class="dest"><span class="mun">'+titleCase(a.mun)+'</span><span class="act">'+a.act+'</span></div>'+
+        '<div class="st '+a.st+'">'+(lab[a.st]||'')+'</div>';
+      el.appendChild(row);
+    }, reduceMotion?0:i*70);
+  });
+}
+
+Chart.defaults.color='#AB9381';
+Chart.defaults.font.family="'IBM Plex Mono', monospace";Chart.defaults.font.size=11;
+const GRID='rgba(255,255,255,.05)';
+const tip={backgroundColor:'#241915',borderColor:'#39271F',borderWidth:1,titleColor:'#DEC9A2',bodyColor:'#F4EADD',
+  padding:11,cornerRadius:9,titleFont:{family:"'Space Grotesk'",weight:'600'},boxPadding:4};
+const DEP_COLORS=['#A21E42','#2F8270','#D7AE6E','#DEC9A2','#6E152E','#3E9B86','#B98142','#8E9B7A','#9C6B4E','#5E7C72','#C77','#7A8E9B'];
+let stateChart,depChart,timeChart;
+
+function buildCharts(){
+  stateChart=new Chart(document.getElementById('stateChart'),{type:'bar',
+    data:{labels:[],datasets:[{data:[],
+      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,c.chart.width,0);g.addColorStop(0,'#245C4F');g.addColorStop(1,'#2F8270');return g;},
+      borderRadius:6,barThickness:16}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tip},
+      scales:{x:{grid:{color:GRID},border:{display:false},beginAtZero:true,ticks:{precision:0}},y:{grid:{display:false},border:{color:'#39271F'}}}}});
+
+  depChart=new Chart(document.getElementById('depChart'),{type:'doughnut',
+    data:{labels:[],datasets:[{data:[],backgroundColor:DEP_COLORS,
+      borderColor:'#1E1513',borderWidth:3,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',
+      plugins:{legend:{position:'right',labels:{usePointStyle:true,pointStyle:'circle',padding:9,font:{size:10}}},tooltip:tip}}});
+
+  timeChart=new Chart(document.getElementById('timeChart'),{type:'bar',
+    data:{labels:[],datasets:[{data:[],
+      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,0,c.chart.height);g.addColorStop(0,'#D7AE6E');g.addColorStop(1,'#BC945A33');return g;},
+      borderRadius:6,maxBarThickness:60}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tip},
+      scales:{x:{grid:{display:false},border:{color:'#39271F'}},y:{grid:{color:GRID},border:{display:false},beginAtZero:true,ticks:{precision:0}}}}});
+}
+
+function renderCharts(){
+  const edoKeys=Object.keys(DATA.edo).sort((a,b)=>DATA.edo[b]-DATA.edo[a]);
+  stateChart.data.labels=edoKeys.map(titleCase);
+  stateChart.data.datasets[0].data=edoKeys.map(k=>DATA.edo[k]);
+  stateChart.update();
+
+  const depKeys=Object.keys(DATA.dep).sort((a,b)=>DATA.dep[b]-DATA.dep[a]);
+  depChart.data.labels=depKeys;
+  depChart.data.datasets[0].data=depKeys.map(k=>DATA.dep[k]);
+  depChart.update();
+  countUp(document.getElementById('depTot'),Object.values(DATA.dep).reduce((a,b)=>a+b,0),900);
+
+  timeChart.data.labels=DATA.dias;
+  timeChart.data.datasets[0].data=DATA.serie;
+  timeChart.update();
+}
+
+function render(){renderKPIs();renderLoad();renderBoard();renderCharts();}
+
+document.getElementById('refreshBtn').addEventListener('click',async e=>{
+  const b=e.currentTarget;b.classList.add('spin');setTimeout(()=>b.classList.remove('spin'),800);
+  await generar();render();
+});
+
+function tick(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('es-MX',{hour12:false});}
+tick();setInterval(tick,1000);
+
+buildCharts();
+generar().then(render);
+
+setInterval(()=>generar().then(render), AUTO_REFRESH_MS);
+</script>
+</body>
+</html>

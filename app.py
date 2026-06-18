@@ -558,21 +558,74 @@ def api_agenda():
         inv = {v: k for k, v in mapa_proyectos.items()}
         carga, edo, dep, serie = Counter(), Counter(), Counter(), defaultdict(int)
 
+        # Dependencias base de interés
+        DEP_BASE = ["SEDATU","RAN","DEFENSA","SEDENA","ATTRAPI","FIFONAFE",
+                    "INDAABIN","SICT","VINCULACIÓN","CONAVI","CONAGUA","LIDERVIC",
+                    "ARTF","SIAL","INPI","INAH","CFE","P.A.","PA"]
+
+        def fecha_norm(fh):
+            """Normaliza a dd/mm/yyyy. Devuelve None si no es fecha válida."""
+            s = str(fh).split()[0].replace("-", "/") if str(fh).split() else ""
+            partes = s.split("/")
+            if len(partes) != 3:
+                return None
+            d, m, a = partes
+            if len(a) == 2:
+                a = "20" + a
+            try:
+                if int(m) > 12 and int(d) <= 12:
+                    d, m = m, d
+                dt = datetime.strptime(f"{int(d):02d}/{int(m):02d}/{a}", "%d/%m/%Y")
+                if dt.year < 2025 or dt.year > 2026:
+                    return None
+                return dt.strftime("%d/%m/%Y")
+            except (ValueError, TypeError):
+                return None
+
+        def fecha_dt(fh):
+            """Igual que fecha_norm pero devuelve un objeto date (o None)."""
+            fn = fecha_norm(fh)
+            if not fn:
+                return None
+            try:
+                return datetime.strptime(fn, "%d/%m/%Y").date()
+            except ValueError:
+                return None
+
+        # Ventana de 3 días desde la fecha MÁS RECIENTE del Sheet
+        fechas_validas = [d for d in (fecha_dt(f.get("FECHA Y HORA", "")) for f in filas) if d]
+        if fechas_validas:
+            fecha_tope = max(fechas_validas)
+            fecha_piso = fecha_tope - timedelta(days=2)
+        else:
+            fecha_tope = fecha_piso = None
+
         for f in filas:
+            d = fecha_dt(f.get("FECHA Y HORA", ""))
+            if fecha_piso is not None and (d is None or d < fecha_piso or d > fecha_tope):
+                continue
+
             proy = inv.get(f.get("PROYECTO FERROVIARIO", ""), "OTRO")
             carga[proy] += 1
             if f.get("ESTADO"):    edo[f["ESTADO"]] += 1
-            for d in str(f.get("DEPENDENCIAS PARTICIPANTES", "")).split(","):
-                d = d.strip()
-                if d: dep[d] += 1
-            partes_fh = str(f.get("FECHA Y HORA", "")).split()
-            if partes_fh:
-                serie[partes_fh[0]] += 1
+
+            celda = str(f.get("DEPENDENCIAS PARTICIPANTES", "")).upper()
+            vistos = set()
+            for base in DEP_BASE:
+                if base in celda:
+                    key = "PA" if base in ("PA", "P.A.") else base
+                    if key not in vistos:
+                        dep[key] += 1
+                        vistos.add(key)
+
+            fn = fecha_norm(f.get("FECHA Y HORA", ""))
+            if fn:
+                serie[fn] += 1
 
         def hora_de(fh):
             p = str(fh).split()
-            return p[-1] if len(p) > 1 else ""   # solo hora si hay "fecha hora"
-
+            return p[-1] if len(p) > 1 else ""
+            
         return jsonify({
             "carga": dict(carga), "edo": dict(edo), "dep": dict(dep), "serie": dict(serie),
             "agenda": [{
