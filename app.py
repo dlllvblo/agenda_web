@@ -153,7 +153,7 @@ CORRECCIONES = {
     "registro agrario nacional": "Registro Agrario Nacional",
     "municipios": "Municipios",
     "municipios de": "Municipios de",
-    "municipio de|": "Municipio de",
+    "municipio de": "Municipio de",
 }
 
 SYSTEM_RESUMEN = (
