@@ -15,7 +15,7 @@
     --panel:#FFFFFF;         /* paneles blancos */
     --panel-2:#FBF7EF;       /* leve degradado en paneles */
     --board:#F7F0E2;         /* fondo del tablero / barras vacías */
-    --line:#E2D3B8;          /* bordes suaves */
+    --line:#a42145;          /* bordes suaves */
     --line-soft:#ECE0CC;     /* divisores aún más sutiles */
 
     --guinda-deep:#6E152E; --guinda:#8E1B3A;
@@ -102,13 +102,13 @@
   .board{background:var(--board);border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .board-head{display:grid;grid-template-columns:54px 60px 1fr 96px;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);
     font-family:'IBM Plex Mono',monospace;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
-  .board-body{max-height:300px;overflow:hidden;background:var(--panel)}
+  .board-body{max-height:300px;overflow-y:auto;overflow-x:hidden;background:var(--panel)}
   .board-row{display:grid;grid-template-columns:54px 60px 1fr 96px;gap:12px;padding:11px 14px;align-items:center;border-bottom:1px solid var(--line-soft);animation:flap .45s ease}
   .board-row:last-child{border-bottom:none}
   @keyframes flap{from{opacity:0;transform:translateY(-5px) rotateX(-25deg)}to{opacity:1;transform:none}}
   .board-row .hr{font-family:'IBM Plex Mono',monospace;font-size:.86rem;font-weight:600;color:var(--text-strong)}
   .board-row .pc{font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:700;padding:2px 6px;border-radius:5px;color:#fff;text-align:center;letter-spacing:.02em}
-  .board-row .dest{font-size:.78rem;line-height:1.35}
+  .board-row .dest{font-size:.78rem;line-height:1.35;min-width:0}
   .board-row .dest .mun{color:var(--text);font-weight:600}
   .board-row .dest .act{color:var(--muted);font-size:.7rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .board-row .st{font-family:'IBM Plex Mono',monospace;font-size:.6rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:right}
@@ -116,7 +116,7 @@
 
   .chart-wrap{position:relative;width:100%}
   .h-state{height:300px}.h-dough{height:260px}.h-time{height:230px}
-  .dough-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+  .dough-center{position:absolute;top:0;bottom:0;left:0;right:38%;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
   .dough-center .n{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;line-height:1;color:var(--text-strong)}
   .dough-center .t{font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);margin-top:4px}
 
@@ -241,7 +241,9 @@ function colorDe(code){ return (PROYECTOS.find(p=>p.code===code)||{}).c || COLOR
 let DATA={carga:{},edo:{},dep:{},dias:[],serie:[],agenda:[]};
 
 function parseF(s){ const [d,m,a]=String(s).split('/'); return new Date(+a,+m-1,+d); }
-function titleCase(s){ return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); }
+function titleCase(s){
+  return String(s||'').toLowerCase().replace(/(^|\s)(\S)/g, (m,sep,ch)=>sep+ch.toUpperCase());
+}
 
 async function generar(){
   const banner=document.getElementById('banner');
