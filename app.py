@@ -140,7 +140,7 @@ def resumir_actividad(linea, detalle=""):
                 "system": SYSTEM_RESUMEN,
                 "messages": [{"role": "user", "content": f"Actividad: {base}"}],
             },
-            timeout=20,
+            timeout=8,
         )
         resp.raise_for_status()
         resumen = resp.json()["content"][0]["text"].strip()
