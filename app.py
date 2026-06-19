@@ -354,14 +354,14 @@ def procesar_agenda(texto):
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
         # EJIDO
-        ejido_match = re.search(r"Ejido:?\s*(.*)", bloque, re.IGNORECASE)
+        ejido_match = re.search(r"(?m)^\s*Ejido:?\s*(.*)", bloque, re.IGNORECASE)
         ejido = ejido_match.group(1).strip() if ejido_match else ""
 
         # NÚCLEO AGRARIO
         nucleo = re.search(r"Núcleo Agrario:\s*(.*)", bloque, re.IGNORECASE)
         if not nucleo:
             ejido_inline = re.search(
-                r'\b(?:Comisariado\s+Ejidal\s+de|Ejido\s+de|Ejido)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\)|,|\.|\n|$)',
+                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejido\s+de|Ejido))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\s*\(|\)|,|\.|\n|$)',
                 linea_principal
             )
             if ejido_inline:
