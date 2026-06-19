@@ -174,6 +174,10 @@ SYSTEM_RESUMEN = (
     "nombres de personas, ejidos/núcleos agrarios y dependencias.\n"
     "- No inventes datos que no estén. No agregues introducción ni explicación.\n"
     "- Responde SOLO con la línea, sin comillas."
+    "- El ejecutor SIEMPRE es SEDATU y las dependencias participantes; NUNCA un particular.\n"
+    "- Las personas nombradas (entre paréntesis, como 'propietario:' o con Sr./Sra.) son los "
+    "propietarios o afectados, no quien ejecuta. Si hay propietario, refiérelo como "
+    "'del Sr. X' o 'de la Sra. X' según el nombre.\n"
 )
 
 def normalizar_capitalizacion(texto):
@@ -350,7 +354,12 @@ def procesar_agenda(texto):
         partes = []
         if bdts_val:
             partes.append(bdts_val)
-        partes.append(resumir_actividad(linea_principal, actividad_detalle))
+        linea_resumen = re.sub(
+            r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+            r'(propietario: \1)',
+            linea_principal
+        )
+        partes.append(resumir_actividad(linea_resumen, actividad_detalle))
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
         # EJIDO
@@ -392,7 +401,17 @@ def procesar_agenda(texto):
                 tit_norm = "Sra." if titulo_inline.group(1).lower().startswith("sra") else "Sr."
                 prop_txt = f"{tit_norm} {titulo_inline.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
-
+        if not particular:
+            paren_inline = re.search(
+                r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+                linea_principal
+            )
+            if paren_inline:
+                prop_txt = paren_inline.group(1).strip()
+                nucleo_txt = nucleo.group(1).strip() if nucleo else ""
+                ya_es_lugar = {nucleo_txt.lower(), ejido.lower(), municipio.lower()}
+                if prop_txt.lower() not in ya_es_lugar:        # guardia: no es lugar ya detectado
+                    particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
