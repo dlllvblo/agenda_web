@@ -551,6 +551,75 @@ def share():
     except Exception as e:
         return f"<h2>❌ Error: {e}</h2>", 500
 
+# =========================
+# BOT DE TELEGRAM (webhook)
+# =========================
+TELEGRAM_CHATS_OK = set(
+    c.strip() for c in os.environ.get("TELEGRAM_CHATS_OK", "").split(",") if c.strip()
+)
+_telegram_vistos = set()   # update_id ya procesados (anti-duplicados en frío de Render)
+
+def telegram_enviar(chat_id, texto):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": texto},
+            timeout=10,
+        )
+    except requests.RequestException:
+        pass
+
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    # 1) Seguridad: el secreto que Telegram manda en cada llamada.
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != os.environ.get("TELEGRAM_WEBHOOK_SECRET", ""):
+        return "", 403
+
+    update = request.get_json(silent=True) or {}
+
+    # 2) Anti-duplicados: si Telegram reintenta el mismo update, lo ignoramos.
+    update_id = update.get("update_id")
+    if update_id is not None:
+        if update_id in _telegram_vistos:
+            return "", 200
+        _telegram_vistos.add(update_id)
+        if len(_telegram_vistos) > 1000:        # no crece sin límite
+            _telegram_vistos.clear()
+
+    msg = update.get("message") or update.get("channel_post") or {}
+    chat_id = str(msg.get("chat", {}).get("id", ""))
+    texto = msg.get("text", "") or ""
+    if not chat_id:
+        return "", 200
+
+    # 3) Control de acceso. Sin lista configurada = modo setup: te dice tu id.
+    if not TELEGRAM_CHATS_OK:
+        telegram_enviar(chat_id, f"[setup] chat_id = {chat_id} — ponlo en TELEGRAM_CHATS_OK")
+        return "", 200
+    if chat_id not in TELEGRAM_CHATS_OK:
+        return "", 200   # chat no autorizado: se ignora en silencio
+
+    # 4) ¿Parece agenda?
+    if "Agenda Proyecto" not in texto and "Fecha:" not in texto:
+        telegram_enviar(chat_id, "Eso no parece agenda. Reenvíame el mensaje del grupo tal cual.")
+        return "", 200
+
+    # 5) Procesa y sube, reutilizando tus funciones de siempre.
+    try:
+        filas = procesar_agenda(texto)
+        if not filas:
+            telegram_enviar(chat_id, "No encontré actividades en ese texto.")
+            return "", 200
+        total = subir_a_sheets(filas)
+        proyecto = filas[0].get("PROYECTO FERROVIARIO", "")
+        telegram_enviar(chat_id, f"✅ Subí {total} actividad(es) a Sheets ({proyecto}).")
+    except Exception as e:
+        telegram_enviar(chat_id, f"❌ Error: {e}")
+    return "", 200
+
 #=========================
 # API AGENDA
 #=========================
