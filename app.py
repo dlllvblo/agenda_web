@@ -159,7 +159,16 @@ def resumir_actividad(linea, detalle=""):
         )
         resp.raise_for_status()
         resumen = resp.json()["content"][0]["text"].strip()
-        return resumen if resumen else base
+        # Red de seguridad: si Haiku pidió datos en vez de redactar, usa el texto base.
+        malo = (
+            not resumen
+            or "\n" in resumen
+            or len(resumen) > 220
+            or resumen.rstrip().endswith(":")
+            or "?" in resumen
+            or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con|datos espec[ií]ficos)', resumen)
+        )
+        return base if malo else resumen
     except Exception:
         return base
 
@@ -188,11 +197,15 @@ SYSTEM_RESUMEN = (
     "- Conserva TEXTUAL: números de parcela (ej. MQ-SBA-P109), PKs (ej. pk 44+900), "
     "nombres de personas, ejidos/núcleos agrarios y dependencias.\n"
     "- No inventes datos que no estén. No agregues introducción ni explicación.\n"
-    "- Responde SOLO con la línea, sin comillas."
+    "- Responde SOLO con la línea, sin comillas.\n"
     "- El ejecutor SIEMPRE es SEDATU y las dependencias participantes; NUNCA un particular.\n"
     "- Las personas nombradas (entre paréntesis, como 'propietario:' o con Sr./Sra.) son los "
     "propietarios o afectados, no quien ejecuta. Si hay propietario, refiérelo como "
     "'del Sr. X' o 'de la Sra. X' según el nombre.\n"
+    "- NUNCA pidas más datos, NUNCA hagas preguntas, NUNCA pidas aclaraciones.\n"
+    "- Aunque la actividad sea muy escueta (ej. 'Caminamiento Ejidal'), redáctala "
+    "igual en pasado con lo que haya (ej. 'Se realizó caminamiento ejidal'). "
+    "SIEMPRE devuelves UNA línea de reporte, jamás una solicitud de información.\n"
 )
 
 def normalizar_capitalizacion(texto):
@@ -331,7 +344,7 @@ def procesar_agenda(texto):
 
         # MUNICIPIO
         municipio_match = re.search(r"Municipio:\s*(.*)", bloque, re.IGNORECASE)
-        municipio = municipio_match.group(1).strip() if municipio_match else ""
+        municipio = municipio_match.group(1).split(',')[0].strip() if municipio_match else ""
 
         # ASISTENTES
         asistentes = re.search(
@@ -406,9 +419,8 @@ def procesar_agenda(texto):
         particular = re.search(r"Propietarios?:\s*(.*)|Particular:\s*(.*)", bloque, re.IGNORECASE)
         if not particular:
             propietario_inline = re.search(
-                r'\b(?:se[ñn]or[a]?|propietari[ao])\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+)',
-                linea_principal,
-                re.IGNORECASE
+                r'(?i:\b(?:se[ñn]or[a]?|propietari[ao]))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+)',
+                linea_principal
             )
             if propietario_inline:
                 prop_txt = propietario_inline.group(1).strip()
