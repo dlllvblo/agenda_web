@@ -8,6 +8,7 @@ import json
 import requests
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
+import unicodedata
 
 app = Flask(__name__)
 
@@ -22,8 +23,22 @@ mapa_proyectos = {
         'TQI':   '3. QUERÉTARO - IRAPUATO',
         'TQSLP': '7. QUERÉTARO - SAN LUIS POTOSÍ',
         'TSNL':  '4. SALTILLO - NUEVO LAREDO',
-        'TSLPS': 'SAN LUIS POTOSÍ - SALTILLO',
+        'TSLPS': '8. SAN LUIS POTOSÍ - SALTILLO',
     }
+
+def _norm(s):
+    s = s or ""
+    s = re.sub(r'^\s*\d+\.\s*', '', s)                       # quita "4. " inicial
+    s = ''.join(c for c in unicodedata.normalize('NFD', s)   # quita acentos
+                if unicodedata.category(c) != 'Mn')
+    s = s.lower()
+    s = re.sub(r'[-–—−]', ' ', s)                            # unifica guiones a espacio
+    s = re.sub(r'\s+', ' ', s).strip()                       # colapsa espacios
+    return s
+
+# Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
+_PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
+_PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -201,11 +216,17 @@ def procesar_agenda(texto):
     # --- PROYECTO ---
     proyecto_match = re.search(r"Proyecto\s*(.*)", texto, re.IGNORECASE)
     proyecto_raw = proyecto_match.group(1).strip() if proyecto_match else ""
-    if proyecto_raw:
-        clave = proyecto_raw.split()[-1].upper()
-        proyecto_final = mapa_proyectos.get(clave, proyecto_raw)
-    else:
+    if not proyecto_raw:
         proyecto_final = "SIN PROYECTO"
+    else:
+        toks = proyecto_raw.split()
+        ultimo = _norm(toks[-1]) if toks else ""
+        if ultimo in _PROY_POR_CLAVE:                          # 1) por clave (TMQ)
+            proyecto_final = _PROY_POR_CLAVE[ultimo]
+        elif frozenset(_norm(proyecto_raw).split()) in _PROY_POR_NOMBRE:   # 2) por nombre
+            proyecto_final = _PROY_POR_NOMBRE[frozenset(_norm(proyecto_raw).split())]
+        else:
+            proyecto_final = proyecto_raw                      # 3) último recurso
 
     # --- FECHA ---
     fecha_match = re.search(
@@ -552,12 +573,13 @@ def share():
         return f"<h2>❌ Error: {e}</h2>", 500
 
 # =========================
-# BOT DE TELEGRAM (webhook)
+# BOT DE TELEGRAM (Tara)
 # =========================
 TELEGRAM_CHATS_OK = set(
     c.strip() for c in os.environ.get("TELEGRAM_CHATS_OK", "").split(",") if c.strip()
 )
 _telegram_vistos = set()   # update_id ya procesados (anti-duplicados en frío de Render)
+_agendas_recientes = {}
 
 def telegram_enviar(chat_id, texto):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -606,6 +628,17 @@ def telegram_webhook():
     if "Agenda Proyecto" not in texto and "Fecha:" not in texto:
         telegram_enviar(chat_id, "Eso no parece agenda. Reenvíame el mensaje del grupo tal cual.")
         return "", 200
+
+    # Anti-duplicados por CONTENIDO (arranque en frío)
+    import hashlib
+    firma = hashlib.sha256(texto.strip().encode("utf-8")).hexdigest()
+    ahora = datetime.now()
+    for h in [h for h, t in _agendas_recientes.items() if (ahora - t).total_seconds() > 600]:
+        del _agendas_recientes[h]
+    if firma in _agendas_recientes:
+        telegram_enviar(chat_id, "⚠️ Esa misma agenda ya la subí hace un momento; no la dupliqué.")
+        return "", 200
+    _agendas_recientes[firma] = ahora
 
     # 5) Procesa y sube, reutilizando tus funciones de siempre.
     try:
