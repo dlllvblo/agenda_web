@@ -725,11 +725,11 @@ def api_agenda():
             except ValueError:
                 return None
 
-        # Ventana de 3 días desde la fecha MÁS RECIENTE del Sheet
+        # Ventana de 5 días desde la fecha MÁS RECIENTE del Sheet
         fechas_validas = [d for d in (fecha_dt(f.get("FECHA Y HORA", "")) for f in filas) if d]
         if fechas_validas:
             fecha_tope = max(fechas_validas)
-            fecha_piso = fecha_tope - timedelta(days=2)
+            fecha_piso = fecha_tope - timedelta(days=4)
         else:
             fecha_tope = fecha_piso = None
 
