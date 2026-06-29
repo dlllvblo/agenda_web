@@ -36,6 +36,47 @@ def _norm(s):
     s = re.sub(r'\s+', ' ', s).strip()                       # colapsa espacios
     return s
 
+def _sin_acentos(s):
+    return ''.join(c for c in unicodedata.normalize('NFD', s or "")
+                   if unicodedata.category(c) != 'Mn')
+
+# Canónico (lo que se ve en la leyenda) -> alias a buscar
+DEP_ALIASES = {
+    "SEDATU":   ["SEDATU", "EDATU"],
+    "RAN":      ["RAN", "REGISTRO AGRARIO NACIONAL"],
+    "SEDENA":   ["SEDENA", "DEFENSA", "SDN"],   # DEFENSA == SEDENA
+    "SICT":     ["SICT", "VINCULACION"],        # Vinculación es unidad de SICT
+    "ATTRAPI":  ["ATTRAPI", "ATRAPI"],
+    "PA":       ["PA", "P.A.", "PROCURADURIA AGRARIA"],
+    "FIFONAFE": ["FIFONAFE"],
+    "INDAABIN": ["INDAABIN", "INDABIN"],
+    # --- cola: se agrupan en OTRAS ---
+    "ARTF":     ["ARTF"],
+    "SIAL":     ["SIAL"],          
+    "LIDERVIC": ["LIDERVIC"],      
+    "CONAVI":   ["CONAVI"],
+    "CONAGUA":  ["CONAGUA"],
+    "CFE":      ["CFE"],
+    "INPI":     ["INPI"],
+    "INAH":     ["INAH"],
+    "SEMARNAT": ["SEMARNAT"],
+    "SEGOB":    ["SEGOB"],
+    "CENAGAS":  ["CENAGAS"],
+    "CENAPRED": ["CENAPRED", "CENEPRED"],
+    "SALUD":    ["SALUD"],
+}
+
+# Las 8 con rebanada propia; lo demás cae en OTRAS
+DEP_NUCLEO = {"SEDATU","SEDENA","RAN","SICT","ATTRAPI","PA","FIFONAFE","INDAABIN"}
+
+def _dep_pat(alias):
+    a = _sin_acentos(alias.upper())
+    cuerpo = r'\s+'.join(re.escape(w) for w in a.split()).replace(r'\.', r'\.?')
+    return r'(?<![A-Z0-9])' + cuerpo + r'(?![A-Z0-9])'
+
+_DEP_PATRONES = {canon: [re.compile(_dep_pat(al)) for al in als]
+                 for canon, als in DEP_ALIASES.items()}
+
 # Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
 _PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
 _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
@@ -691,10 +732,7 @@ def api_agenda():
         inv = {v: k for k, v in mapa_proyectos.items()}
         carga, edo, dep, serie = Counter(), Counter(), Counter(), defaultdict(int)
 
-        # Dependencias base de interés
-        DEP_BASE = ["SEDATU","RAN","DEFENSA","SEDENA","ATTRAPI","FIFONAFE",
-                    "INDAABIN","SICT","VINCULACIÓN","CONAVI","CONAGUA","LIDERVIC",
-                    "ARTF","SIAL","INPI","INAH","CFE","P.A.","PA"]
+        
 
         def fecha_norm(fh):
             """Normaliza a dd/mm/yyyy. Devuelve None si no es fecha válida."""
@@ -742,14 +780,10 @@ def api_agenda():
             carga[proy] += 1
             if f.get("ESTADO"):    edo[f["ESTADO"]] += 1
 
-            celda = str(f.get("DEPENDENCIAS PARTICIPANTES", "")).upper()
-            vistos = set()
-            for base in DEP_BASE:
-                if base in celda:
-                    key = "PA" if base in ("PA", "P.A.") else base
-                    if key not in vistos:
-                        dep[key] += 1
-                        vistos.add(key)
+            celda = _sin_acentos(str(f.get("DEPENDENCIAS PARTICIPANTES", "")).upper())
+            for canon, patrones in _DEP_PATRONES.items():
+                if any(p.search(celda) for p in patrones):
+                    dep[canon] += 1
 
             fn = fecha_norm(f.get("FECHA Y HORA", ""))
             if fn:
@@ -778,11 +812,15 @@ def api_agenda():
             # ordena por (fecha, hora) descendente = más reciente primero
             items.sort(key=lambda x: x[0], reverse=True)
             return [it[1] for it in items[:10]]
-            
+
+        dep_colapsado = Counter()
+        for canon, n in dep.items():
+            dep_colapsado["OTRAS" if canon not in DEP_NUCLEO else canon] += n
+
         return jsonify({
             "carga": dict(carga),
             "edo": dict(edo),
-            "dep": dict(dep),
+            "dep": dict(dep_colapsado),
             "serie": dict(serie),
             "agenda": construir_agenda(filas, fecha_piso, fecha_tope, fecha_dt, hora_de, inv),
         })
