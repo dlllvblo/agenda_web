@@ -11,7 +11,7 @@
 <style>
   :root{
     /* === TEMA LIGHT === */
-    --bg:#e4e4e4;            /* fondo arena/crema */
+    --bg:#b7b7b7;            /* fondo arena/crema */
     --panel:#FFFFFF;         /* paneles blancos */
     --panel-2:#FBF7EF;       /* leve degradado en paneles */
     --board:#F7F0E2;         /* fondo del tablero / barras vacías */
@@ -361,7 +361,7 @@ function buildCharts(){
 
   timeChart=new Chart(document.getElementById('timeChart'),{type:'bar',
     data:{labels:[],datasets:[{data:[],
-      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,0,c.chart.height);g.addColorStop(0,'#A8803F');g.addColorStop(1,'#C9A86A');return g;},
+      backgroundColor:c=>{const g=c.chart.ctx.createLinearGradient(0,0,0,c.chart.height);g.addColorStop(0,'#6E152E');g.addColorStop(1,'#245C4F');return g;},
       borderRadius:6,maxBarThickness:60}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:tip},
       scales:{x:{grid:{display:false},border:{color:'#E2D3B8'}},y:{grid:{color:GRID},border:{display:false},beginAtZero:true,ticks:{precision:0}}}}});
