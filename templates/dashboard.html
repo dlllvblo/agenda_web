@@ -308,7 +308,7 @@ function renderLoad(){
     return Object.assign({}, meta, {v:DATA.carga[code]});
   }).sort((a,b)=>b.v-a.v);
   orden.forEach((p,i)=>{
-    const pct=(p.v/total*100);
+    const pct=Math.round(p.v/total*100);
     const row=document.createElement('div');
     row.className='load-row'+(i===0?' lead':'');row.style.setProperty('--c',p.c);
     row.innerHTML='<div class="load-rank">'+String(i+1).padStart(2,'0')+'</div>'+
