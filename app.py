@@ -634,6 +634,12 @@ TELEGRAM_CHATS_OK = set(
 _telegram_vistos = set()   # update_id ya procesados (anti-duplicados en frío de Render)
 _agendas_recientes = {}
 
+import threading
+
+_buffer_lock = threading.Lock()
+_mensajes_buffer = {}  # chat_id -> {"texto": str, "timer": Timer}
+BUFFER_DELAY = 4  # segundos de espera para juntar fragmentos partidos por Telegram
+
 def telegram_enviar(chat_id, texto):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -677,12 +683,32 @@ def telegram_webhook():
     if chat_id not in TELEGRAM_CHATS_OK:
         return "", 200   # chat no autorizado: se ignora en silencio
 
-    # 4) ¿Parece agenda?
+    # 4) Acumula en buffer por si Telegram partió el mensaje en fragmentos
+    with _buffer_lock:
+        entry = _mensajes_buffer.get(chat_id)
+        if entry:
+            entry["timer"].cancel()
+            entry["texto"] += texto
+        else:
+            entry = {"texto": texto}
+            _mensajes_buffer[chat_id] = entry
+        entry["timer"] = threading.Timer(BUFFER_DELAY, _procesar_buffer, args=(chat_id,))
+        entry["timer"].start()
+
+    return "", 200
+
+
+def _procesar_buffer(chat_id):
+    with _buffer_lock:
+        entry = _mensajes_buffer.pop(chat_id, None)
+    if not entry:
+        return
+    texto = entry["texto"]
+
     if "Agenda Proyecto" not in texto and "Fecha:" not in texto:
         telegram_enviar(chat_id, "Eso no parece agenda. Reenvíame el mensaje del grupo tal cual.")
-        return "", 200
+        return
 
-    # Anti-duplicados por CONTENIDO (arranque en frío)
     import hashlib
     firma = hashlib.sha256(texto.strip().encode("utf-8")).hexdigest()
     ahora = datetime.now()
@@ -690,21 +716,19 @@ def telegram_webhook():
         del _agendas_recientes[h]
     if firma in _agendas_recientes:
         telegram_enviar(chat_id, "⚠️ Esa misma agenda ya la subí hace un momento; no la dupliqué.")
-        return "", 200
+        return
     _agendas_recientes[firma] = ahora
 
-    # 5) Procesa y sube, reutilizando tus funciones de siempre.
     try:
         filas = procesar_agenda(texto)
         if not filas:
             telegram_enviar(chat_id, "No encontré actividades en ese texto.")
-            return "", 200
+            return
         total = subir_a_sheets(filas)
         proyecto = filas[0].get("PROYECTO FERROVIARIO", "")
         telegram_enviar(chat_id, f"✅ Subí {total} actividad(es) a Sheets ({proyecto}).")
     except Exception as e:
         telegram_enviar(chat_id, f"❌ Error: {e}")
-    return "", 200
 
 #=========================
 # API AGENDA
