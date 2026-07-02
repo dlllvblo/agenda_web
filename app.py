@@ -263,6 +263,44 @@ def normalizar_capitalizacion(texto):
     )
     return texto
 
+# =========================
+# NOMENCLATURAS
+# =========================
+NOMEN_RE = re.compile(
+    r'(?im)^\s*(?:Nomenclaturas?|Pol[ií]gonos?)\s*:\s*(.+?)\s*$'
+)
+
+def extraer_nomenclaturas(bloque):
+    """Extrae lista de códigos de líneas Nomenclatura(s):/Polígono(s):"""
+    codigos = []
+    for m in NOMEN_RE.finditer(bloque):
+        valor = m.group(1).strip()
+        if valor.upper() == "N/A":
+            continue
+        partes = re.split(r'\s*,\s*|\s+y\s+|\s+e\s+', valor)
+        codigos.extend(p.strip() for p in partes if p.strip())
+    # dedup conservando orden
+    vistos = set()
+    return [c for c in codigos if not (c in vistos or vistos.add(c))]
+
+def integrar_nomenclaturas(resumen, noms):
+    """Pega los códigos de forma determinista al resumen de Haiku."""
+    if not noms:
+        return resumen
+    # no duplicar códigos que Haiku ya haya conservado del texto
+    faltantes = [n for n in noms if n not in resumen]
+    if not faltantes:
+        return resumen
+    resumen = resumen.rstrip(' .')
+    lista = (faltantes[0] if len(faltantes) == 1
+             else ", ".join(faltantes[:-1]) + " y " + faltantes[-1])
+    # Si el resumen ya termina en el sustantivo, solo pegamos los códigos
+    if re.search(r'(?i)(predios?|pol[ií]gonos?|parcelas?|nomenclaturas?|inmuebles?)$', resumen):
+        return f"{resumen}: {lista}"
+    sufijo = ("del polígono con nomenclatura" if len(faltantes) == 1
+              else "de los polígonos con nomenclaturas")
+    return f"{resumen} {sufijo}: {lista}"
+
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
@@ -347,9 +385,9 @@ def procesar_agenda(texto):
             if len(lineas_bloque) > 1:
                 linea_principal = lineas_bloque[1]
 
-        # CAMBIO 1: cortar linea_principal antes del primer campo conocido
+        # Cortar linea_principal antes del primer campo conocido
         linea_principal = re.split(
-            r'\s+(?=(?:F:|BDTs?:|Pol[ií]gonos?:|Asistentes?:|Ubicaci[oó]n:|Ejido:|Municipio:|Hora:|Parcelas:))',
+            r'\s+(?=(?:F:|BDTs?:|Nomenclaturas?:|Pol[ií]gonos?:|Asistentes?:|Ubicaci[oó]n:|Ejido:|Municipio:|Hora:|Parcelas:))',
             linea_principal, maxsplit=1, flags=re.IGNORECASE
         )[0].strip()
 
@@ -409,6 +447,7 @@ def procesar_agenda(texto):
             lat, lng = extraer_coordenadas(url)
             if lat is not None:
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
+
         # UBICACIONES MÚLTIPLES
         ubicaciones_multi = re.findall(
             r'^\s*(?:[a-zA-Z][\)\.]|[-•])\s*(.+?):\s*(https?://\S+)',
@@ -434,7 +473,12 @@ def procesar_agenda(texto):
             r'(propietario: \1)',
             linea_principal
         )
-        partes.append(resumir_actividad(linea_resumen, actividad_detalle))
+        nomenclaturas = extraer_nomenclaturas(bloque)
+        resumen_final = integrar_nomenclaturas(
+            resumir_actividad(linea_resumen, actividad_detalle),
+            nomenclaturas
+        )
+        partes.append(resumen_final)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
         # EJIDO
