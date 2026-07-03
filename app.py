@@ -325,10 +325,30 @@ CATEGORIAS_CONTEO = [
      [r'reunion(?:es)?', r'asambleas?', r'asesorias?', r'mesas?\s+de\s+trabajo']),
     ("2. Caminamientos/Inspecciones",
      [r'caminamientos?', r'inspecci(?:on|ones)', r'recorridos?', r'visitas?\s+de\s+campo']),
-    ("4. Infografía",
-     [r'infografias?']),
-    ("5. Cartografía",
-     [r'cartografias?', r'planos?', r'mapas?']),
+    ("4. Infografía", [r'infografias?']),
+    ("5. Cartografía", [r'cartografias?', r'planos?', r'mapas?']),
+    ("6. Firmas de convenios y actas",
+     [r'firmas?']),
+    ("7. Acercamientos/Sensibilización/Negociación",
+     [r'a[cs]ercamientos?', r'sensibilizaci(?:on|ones)', r'negociaci(?:on|ones)',
+      r'atenci(?:on|ones)', r'citas?\s+con']),
+    ("8. Visitas/Revisiones/Verificaciones",
+     [r'visitas?', r'revisi(?:on|ones)', r'revisar', r'verificaci(?:on|ones)',
+      r'identificaci(?:on|ones)', r'ubicaci(?:on|ones)\s+de']),
+    ("9. Consultas y búsquedas registrales",
+     [r'consultas?', r'busquedas?', r'antecedentes', r'catastro', r'notarias?',
+      r'rpp', r'expedientes?', r'recopilaci(?:on|ones)']),
+    ("10. Peritajes/Avalúos/Acompañamientos",
+     [r'peritajes?', r'peritos?', r'avaluos?', r'acompanamientos?']),
+    ("11. Marcaje/Delimitación",
+     [r'marcajes?', r'delimitaci(?:on|ones)']),
+    ("12. Mesas sociales/Convocatorias/Videoconferencias",
+     [r'mesas?\s+(?:de\s+atencion|social(?:es)?)', r'videoconferencias?',
+      r'convocatorias?', r'conciliaci(?:on|ones)']),
+    ("13. Censos/Reubicaciones",
+     [r'censos?', r'reubicaci(?:on|ones)']),
+    ("14. Presentaciones/Entregas",
+     [r'presentaci(?:on|ones)', r'entregas?\s+de', r'recepci(?:on|ones)']),
 ]
 
 CAT3_NOMBRE = "3. Levantamientos agenda (topográficos/BDTs agro y construcción)"
@@ -337,7 +357,7 @@ CAT3_SUB = [
     ("BDTs agroforestal",  [r'agroforestal(?:es)?', r'agricolas?']),
 ]
 CAT3_GENERAL = ("Topográficos/Mediciones",
-                [r'medici(?:on|ones)', r'levantamientos?', r'topografic[oa]s?', r'bdt'])
+                [r'medici(?:on|ones)', r'levantamientos?', r'topografic[oa]s?', r'bdts?'])
 
 def _compilar_cat(pats):
     return [re.compile(r'(?<!\w)' + p + r'(?!\w)') for p in pats]
@@ -348,17 +368,15 @@ _CAT3_GEN_PAT  = _compilar_cat(CAT3_GENERAL[1])
 
 def clasificar_actividad(tipo_solicitud, detalle=""):
     """Devuelve lista de (categoria, subcategoria) detectadas.
-       Cats 1,2,4,5 y el disparo de la 3: SOLO con TIPO DE SOLICITUD.
+       Todas las categorías y el disparo de la 3: SOLO con TIPO DE SOLICITUD.
        Subtipo de la 3 (construcción/agroforestal): también busca en el detalle."""
     txt = _sin_acentos(str(tipo_solicitud or "")).lower()
     hits = []
 
-    # Categorías 1, 2, 4, 5 (multi-etiqueta)
     for nombre, patrones in _CAT_PATRONES:
         if any(p.search(txt) for p in patrones):
             hits.append((nombre, None))
 
-    # Categoría 3: ¿la actividad ES medición/levantamiento/BDT?
     es_cat3 = (any(p.search(txt) for p in _CAT3_GEN_PAT)
                or any(p.search(txt) for _, pats in _CAT3_SUB_PAT for p in pats))
     if es_cat3:
