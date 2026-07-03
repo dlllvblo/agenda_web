@@ -75,7 +75,7 @@
   @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   .cat .num-cat{font-family:'IBM Plex Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.2em;
     color:var(--c);text-transform:uppercase}
-  .cat .nombre{font-family:'Space Grotesk',sans-serif;font-size:.82rem;font-weight:600;line-height:1.35;color:var(--text);flex:1}
+  .cat .nombre{font-family:'Space Grotesk',sans-serif;font-size:.92rem;font-weight:600;line-height:1.35;color:var(--text);flex:1}
   .cat .valor{font-family:'Space Grotesk',sans-serif;font-size:3rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--c)}
   .cat .pct{font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:var(--muted-2)}
 
@@ -193,7 +193,7 @@ function crearTarjeta({numLabel,nombre,valor,pct,color,desglose}){
 
   const nom=document.createElement('div');
   nom.className='nombre';
-  nom.textContent=nombre;
+  nom.textContent=String(nombre).replace(/\//g,'/\u200B');
 
   const val=document.createElement('div');
   val.className='valor mono';
@@ -203,7 +203,8 @@ function crearTarjeta({numLabel,nombre,valor,pct,color,desglose}){
   p.className='pct';
   p.textContent=pct;
 
-  card.append(num,nom,val,p);
+  if(numLabel){card.append(num);}
+  card.append(nom,val,p);
 
   if(desglose && Object.keys(desglose).length){
     const box=document.createElement('div');
@@ -257,7 +258,7 @@ async function cargar(){
       const {num,txt}=partesDe(nombre);
       const esCat3=numDe(nombre)===3;
       const {card,val}=crearTarjeta({
-        numLabel:'Categoría '+num,
+        numLabel:'',
         nombre:txt,
         valor:v,
         pct:Math.round(v/denomPct*100)+"% de los conceptos",
