@@ -231,6 +231,7 @@ CORRECCIONES = {
 # =========================
 CORRECCIONES_SIGLAS = {
     r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
+    r'lo que alucine de COP': 'Convenio de Ocupación Previa',
 }
 
 def corregir_siglas(texto):
@@ -260,7 +261,8 @@ SYSTEM_RESUMEN = (
     "igual en pasado con lo que haya (ej. 'Se realizó caminamiento ejidal'). "
     "SIEMPRE devuelves UNA línea de reporte, jamás una solicitud de información.\n"
     "GLOSARIO DE SIGLAS (usa estos significados EXACTOS):\n"
-    "- BDT / BDTs / BDT's: Bienes Distintos a la Tierra (construcciones (edificaciones), cultivos, árboles, cosechas, u otros bienes sobre el terreno, distintos de la tierra misma)\n"
+    "- BDT / BDTs / BDT's: Bienes Distintos a la Tierra (construcciones, cultivos, árboles, cosechas u otros bienes sobre el terreno, distintos de la tierra misma)\n"
+    "- COP / COPs / COP's / cop / cops (en cualquier combinación de mayúsculas y minúsculas): Convenio de Ocupación Previa. En plural: Convenios de Ocupación Previa.\n"
     "- Regla: si encuentras una sigla que NO está en este glosario, consérvala tal cual aparece. NUNCA inventes ni deduzcas el significado de una sigla."
 )
 
