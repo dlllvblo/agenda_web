@@ -209,7 +209,7 @@ def resumir_actividad(linea, detalle=""):
             or "?" in resumen
             or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con|datos espec[ií]ficos)', resumen)
         )
-        return base if malo else resumen
+        return base if malo else corregir_siglas(resumen)
     except Exception:
         return base
 
@@ -225,6 +225,18 @@ CORRECCIONES = {
     "municipios de": "Municipios de",
     "municipio de": "Municipio de",
 }
+
+# =========================
+# CORRECCIÓN DE SIGLAS
+# =========================
+CORRECCIONES_SIGLAS = {
+    r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
+}
+
+def corregir_siglas(texto):
+    for patron, correcto in CORRECCIONES_SIGLAS.items():
+        texto = re.sub(patron, correcto, texto, flags=re.IGNORECASE)
+    return texto
 
 SYSTEM_RESUMEN = (
     "Redactas UNA sola línea de reporte institucional para actividades de campo "
@@ -247,6 +259,9 @@ SYSTEM_RESUMEN = (
     "- Aunque la actividad sea muy escueta (ej. 'Caminamiento Ejidal'), redáctala "
     "igual en pasado con lo que haya (ej. 'Se realizó caminamiento ejidal'). "
     "SIEMPRE devuelves UNA línea de reporte, jamás una solicitud de información.\n"
+    "GLOSARIO DE SIGLAS (usa estos significados EXACTOS):\n"
+    "- BDT / BDTs / BDT's: Bienes Distintos a la Tierra (construcciones (edificaciones), cultivos, árboles, cosechas, u otros bienes sobre el terreno, distintos de la tierra misma)\n"
+    "- Regla: si encuentras una sigla que NO está en este glosario, consérvala tal cual aparece. NUNCA inventes ni deduzcas el significado de una sigla."
 )
 
 def normalizar_capitalizacion(texto):
