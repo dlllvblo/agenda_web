@@ -351,10 +351,10 @@ CATEGORIAS_CONTEO = [
      [r'presentaci(?:on|ones)', r'entregas?\s+de', r'recepci(?:on|ones)']),
 ]
 
-CAT3_NOMBRE = "3. Levantamientos agenda (topográficos/BDTs agro y construcción)"
+CAT3_NOMBRE = "3. Levantamientos Agenda (Topográficos/BDTs Agroforestales y Construcción)"
 CAT3_SUB = [
-    ("BDTs construcción",  [r'construcci(?:on|ones)']),
-    ("BDTs agroforestal",  [r'agroforestal(?:es)?', r'agricolas?']),
+    ("BDTs Construcción",  [r'construcci(?:on|ones)']),
+    ("BDTs Agroforestal",  [r'agroforestal(?:es)?', r'agricolas?']),
 ]
 CAT3_GENERAL = ("Topográficos/Mediciones",
                 [r'medici(?:on|ones)', r'levantamientos?', r'topografic[oa]s?', r'bdts?'])
