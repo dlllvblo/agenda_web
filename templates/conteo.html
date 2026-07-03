@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conteo · Actividades por Categoría</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#d7d7d7;
+    --panel:#FFFFFF;
+    --panel-2:#FBF7EF;
+    --board:#F7F0E2;
+    --line:#a42145;
+    --line-soft:#ECE0CC;
+    --guinda-deep:#6E152E; --guinda:#8E1B3A;
+    --verde-deep:#245C4F; --verde:#2F8270;
+    --dorado:#A8803F; --dorado-bright:#BC945A; --arena:#C9A86A;
+    --text:#3A2A22;
+    --text-strong:#6E152E;
+    --muted:#5A4636;
+    --muted-2:#74604C;
+    --radius:14px;
+    --shadow:0 10px 30px -12px rgba(110,21,46,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1100px 560px at 82% -10%, rgba(188,148,90,.18), transparent 60%),
+      radial-gradient(900px 500px at 0% 110%, rgba(162,30,66,.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh; padding:18px;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+  .topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 20px;margin-bottom:16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .brand .logo{width:42px;height:42px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--guinda),var(--guinda-deep));
+    display:grid;place-items:center;box-shadow:0 4px 12px -4px rgba(110,21,46,.4),inset 0 1px 0 rgba(255,255,255,.18)}
+  .brand .logo svg{width:23px;height:23px}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--text-strong)}
+  .brand .sub{font-size:.61rem;letter-spacing:.32em;color:var(--dorado);text-transform:uppercase;margin-top:5px;font-weight:600}
+  .topbar .spacer{flex:1 1 40px}
+  .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
+  .ventana b{color:var(--text-strong);font-weight:600}
+  .refresh{display:inline-flex;align-items:center;gap:8px;background:var(--board);color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;cursor:pointer;transition:border-color .18s,background .18s}
+  .refresh:hover{border-color:var(--guinda);background:#fff}
+  .refresh:focus-visible{outline:2px solid var(--guinda);outline-offset:2px}
+  .refresh svg{width:14px;height:14px}
+  .refresh.spin svg{animation:spin .8s linear}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .banner{display:none;background:rgba(162,30,66,.10);border:1px solid var(--guinda);color:var(--guinda-deep);
+    padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem;font-family:'IBM Plex Mono',monospace}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .span4{grid-column:span 4}.span6{grid-column:span 6}.span12{grid-column:span 12}
+
+  /* Tarjeta de categoría */
+  .cat{display:flex;flex-direction:column;gap:12px;border-top:4px solid var(--c, var(--guinda))}
+  .cat .num-cat{font-family:'IBM Plex Mono',monospace;font-size:.62rem;font-weight:700;letter-spacing:.2em;
+    color:var(--c);text-transform:uppercase}
+  .cat .nombre{font-family:'Space Grotesk',sans-serif;font-size:.86rem;font-weight:600;line-height:1.35;color:var(--text);min-height:2.7em}
+  .cat .valor{font-family:'Space Grotesk',sans-serif;font-size:3.4rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--c)}
+  .cat .pct{font-family:'IBM Plex Mono',monospace;font-size:.64rem;color:var(--muted-2);margin-top:2px}
+
+  /* Desglose interno cat 3 */
+  .desglose{border-top:1px solid var(--line-soft);padding-top:10px;display:flex;flex-direction:column;gap:7px}
+  .desg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.72rem}
+  .desg-row .k{color:var(--muted);display:flex;align-items:center;gap:7px}
+  .desg-row .k::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--dc)}
+  .desg-row .v{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--text-strong)}
+
+  /* Totales */
+  .totalbar{display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+  .totalbar .item{display:flex;flex-direction:column;gap:4px}
+  .totalbar .item .t{font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
+  .totalbar .item .n{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;font-weight:700;color:var(--text-strong);line-height:1}
+  .totalbar .sep{width:1px;height:38px;background:var(--line-soft)}
+
+  /* Sin clasificar */
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+  .panel-head h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-strong)}
+  .panel-head .tag{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2);letter-spacing:.1em;border:1px solid var(--line);padding:3px 8px;border-radius:6px}
+  .sc-list{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow-y:auto}
+  .sc-chip{font-family:'IBM Plex Mono',monospace;font-size:.66rem;background:var(--board);border:1px solid var(--line-soft);
+    border-radius:7px;padding:5px 10px;color:var(--muted)}
+  .sc-chip b{color:var(--guinda);font-weight:700;margin-left:6px}
+  .empty{color:var(--muted-2);font-size:.8rem;padding:14px 0;text-align:center}
+
+  footer{margin-top:18px;text-align:center;font-size:.64rem;color:var(--muted-2);letter-spacing:.08em}
+  footer .mono{color:var(--muted)}
+
+  @media (max-width:1040px){.span4{grid-column:span 6}.span6{grid-column:span 12}}
+  @media (max-width:640px){body{padding:12px}.span4{grid-column:span 12}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 20h18"/><path d="M6 20V9M11 20V4M16 20v-8M21 20V7"/>
+        </svg>
+      </div>
+      <div><h1>Conteo de Actividades</h1><div class="sub">Por Categoría</div></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="ventana" id="ventana">—</div>
+    <button class="refresh" id="refreshBtn" aria-label="Actualizar desde Google Sheets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8E1B3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      Actualizar
+    </button>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="grid">
+
+    <div class="panel span12">
+      <div class="totalbar">
+        <div class="item"><span class="t">Actividades en ventana</span><span class="n mono" id="t-total">0</span></div>
+        <div class="sep"></div>
+        <div class="item"><span class="t">Conceptos contados</span><span class="n mono" id="t-conceptos">0</span></div>
+        <div class="sep"></div>
+        <div class="item"><span class="t">Otras (sin categoría)</span><span class="n mono" id="t-otras">0</span></div>
+      </div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#8E1B3A">
+      <div class="num-cat">Categoría 01</div>
+      <div class="nombre">Atención a Reuniones / Asambleas / Asesorías</div>
+      <div class="valor mono" id="c1">0</div>
+      <div class="pct" id="p1">—</div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#245C4F">
+      <div class="num-cat">Categoría 02</div>
+      <div class="nombre">Caminamientos / Inspecciones</div>
+      <div class="valor mono" id="c2">0</div>
+      <div class="pct" id="p2">—</div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#A8803F">
+      <div class="num-cat">Categoría 03</div>
+      <div class="nombre">Levantamientos agenda (topográficos / BDTs agro y construcción)</div>
+      <div class="valor mono" id="c3">0</div>
+      <div class="pct" id="p3">—</div>
+      <div class="desglose">
+        <div class="desg-row" style="--dc:#A8803F"><span class="k">Topográficos / Mediciones</span><span class="v" id="d-gen">0</span></div>
+        <div class="desg-row" style="--dc:#6E152E"><span class="k">BDTs construcción</span><span class="v" id="d-con">0</span></div>
+        <div class="desg-row" style="--dc:#2F8270"><span class="k">BDTs agroforestal</span><span class="v" id="d-agro">0</span></div>
+      </div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#B5772E">
+      <div class="num-cat">Categoría 04</div>
+      <div class="nombre">Infografía</div>
+      <div class="valor mono" id="c4">0</div>
+      <div class="pct" id="p4">—</div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#6E7C58">
+      <div class="num-cat">Categoría 05</div>
+      <div class="nombre">Cartografía</div>
+      <div class="valor mono" id="c5">0</div>
+      <div class="pct" id="p5">—</div>
+    </div>
+
+    <div class="panel span4 cat" style="--c:#A8957F">
+      <div class="num-cat">Otras</div>
+      <div class="nombre">Actividades sin categoría asignada</div>
+      <div class="valor mono" id="c6">0</div>
+      <div class="pct" id="p6">—</div>
+    </div>
+
+    <div class="panel span12">
+      <div class="panel-head"><h2>Sin clasificar</h2><span class="tag">PARA CALIBRAR KEYWORDS</span></div>
+      <div class="sc-list" id="sinclas"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span class="mono">Registro Agrario Nacional · Dirección General Territorial</span>
+  </footer>
+
+<script>
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Mapeo id de tarjeta -> nombre EXACTO de la categoría en el JSON del backend
+const CATS = [
+  {id:'1', key:'1. Atención a Reuniones/Asambleas/Asesorías'},
+  {id:'2', key:'2. Caminamientos/Inspecciones'},
+  {id:'3', key:'3. Levantamientos agenda (topográficos/BDTs agro y construcción)'},
+  {id:'4', key:'4. Infografía'},
+  {id:'5', key:'5. Cartografía'},
+];
+const DESGLOSE = [
+  {id:'d-gen',  key:'Topográficos/Mediciones'},
+  {id:'d-con',  key:'BDTs construcción'},
+  {id:'d-agro', key:'BDTs agroforestal'},
+];
+
+function countUp(el,target,dur=900){
+  if(reduceMotion){el.textContent=Math.round(target).toLocaleString('es-MX');return;}
+  const from=parseFloat(el.dataset.cur||'0'),start=performance.now();
+  (function tick(now){const t=Math.min(1,(now-start)/dur),e=1-Math.pow(1-t,3);
+    el.textContent=Math.round(from+(target-from)*e).toLocaleString('es-MX');
+    if(t<1)requestAnimationFrame(tick);else el.dataset.cur=target;})(start);
+}
+
+async function cargar(){
+  const banner=document.getElementById('banner');
+  banner.style.display='none';
+  try{
+    const r=await fetch("/api/conteo");
+    const j=await r.json();
+    if(j.error){
+      banner.style.display='block';
+      banner.textContent="Error al leer el Sheet: "+j.error;
+      console.error(j.error, j.trace);
+      return;
+    }
+
+    // Ventana
+    if(j.ventana){
+      document.getElementById('ventana').innerHTML=
+        "Ventana: <b>"+j.ventana.desde+"</b> &rarr; <b>"+j.ventana.hasta+"</b>";
+    }
+
+    const conteo=j.conteo||{};
+    const conceptos=Object.values(conteo).reduce((a,b)=>a+b,0);
+    const denomPct=conceptos+(j.otras||0)||1;
+
+    // Totales
+    countUp(document.getElementById('t-total'), j.total||0);
+    countUp(document.getElementById('t-conceptos'), conceptos);
+    countUp(document.getElementById('t-otras'), j.otras||0);
+
+    // Tarjetas de categoría
+    CATS.forEach(c=>{
+      const v=conteo[c.key]||0;
+      countUp(document.getElementById('c'+c.id), v);
+      document.getElementById('p'+c.id).textContent=
+        Math.round(v/denomPct*100)+"% de los conceptos";
+    });
+
+    // Otras
+    countUp(document.getElementById('c6'), j.otras||0);
+    document.getElementById('p6').textContent=
+      Math.round((j.otras||0)/denomPct*100)+"% de los conceptos";
+
+    // Desglose cat 3
+    const desg=j.cat3_desglose||{};
+    DESGLOSE.forEach(d=>{
+      document.getElementById(d.id).textContent=(desg[d.key]||0).toLocaleString('es-MX');
+    });
+
+    // Sin clasificar (agrupado con frecuencia)
+    const sc=document.getElementById('sinclas');
+    sc.innerHTML='';
+    const lista=j.sin_clasificar||[];
+    if(!lista.length){
+      sc.innerHTML='<div class="empty">Todo clasificado en esta ventana ✅</div>';
+    }else{
+      const freq={};
+      lista.forEach(t=>{const k=(t||'').trim()||'(vacío)';freq[k]=(freq[k]||0)+1;});
+      Object.entries(freq).sort((a,b)=>b[1]-a[1]).forEach(([txt,n])=>{
+        const chip=document.createElement('span');
+        chip.className='sc-chip';
+        chip.textContent=txt;
+        const b=document.createElement('b');
+        b.textContent='×'+n;
+        chip.appendChild(b);
+        sc.appendChild(chip);
+      });
+    }
+  }catch(err){
+    banner.style.display='block';
+    banner.textContent="No se pudo conectar con /api/conteo. ¿Está corriendo Flask?";
+    console.error(err);
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click',e=>{
+  const b=e.currentTarget;b.classList.add('spin');setTimeout(()=>b.classList.remove('spin'),800);
+  cargar();
+});
+
+cargar();
+</script>
+</body>
+</html>

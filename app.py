@@ -231,7 +231,6 @@ CORRECCIONES = {
 # =========================
 CORRECCIONES_SIGLAS = {
     r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
-    r'lo que alucine de COP': 'Convenio de Ocupación Previa',
 }
 
 def corregir_siglas(texto):
@@ -317,6 +316,61 @@ def integrar_nomenclaturas(resumen, noms):
     sufijo = ("del polígono con nomenclatura" if len(faltantes) == 1
               else "de los polígonos con nomenclaturas")
     return f"{resumen} {sufijo}: {lista}"
+
+# =========================
+# CONTEO DE ACTIVIDADES POR CATEGORÍA (abril → hoy)
+# =========================
+CATEGORIAS_CONTEO = [
+    ("1. Atención a Reuniones/Asambleas/Asesorías",
+     [r'reunion(?:es)?', r'asambleas?', r'asesorias?', r'mesas?\s+de\s+trabajo']),
+    ("2. Caminamientos/Inspecciones",
+     [r'caminamientos?', r'inspecci(?:on|ones)', r'recorridos?', r'visitas?\s+de\s+campo']),
+    ("4. Infografía",
+     [r'infografias?']),
+    ("5. Cartografía",
+     [r'cartografias?', r'planos?', r'mapas?']),
+]
+
+CAT3_NOMBRE = "3. Levantamientos agenda (topográficos/BDTs agro y construcción)"
+CAT3_SUB = [
+    ("BDTs construcción",  [r'construcci(?:on|ones)']),
+    ("BDTs agroforestal",  [r'agroforestal(?:es)?', r'agricolas?']),
+]
+CAT3_GENERAL = ("Topográficos/Mediciones",
+                [r'medici(?:on|ones)', r'levantamientos?', r'topografic[oa]s?', r'bdt'])
+
+def _compilar_cat(pats):
+    return [re.compile(r'(?<!\w)' + p + r'(?!\w)') for p in pats]
+
+_CAT_PATRONES  = [(n, _compilar_cat(p)) for n, p in CATEGORIAS_CONTEO]
+_CAT3_SUB_PAT  = [(n, _compilar_cat(p)) for n, p in CAT3_SUB]
+_CAT3_GEN_PAT  = _compilar_cat(CAT3_GENERAL[1])
+
+def clasificar_actividad(tipo_solicitud, detalle=""):
+    """Devuelve lista de (categoria, subcategoria) detectadas.
+       Cats 1,2,4,5 y el disparo de la 3: SOLO con TIPO DE SOLICITUD.
+       Subtipo de la 3 (construcción/agroforestal): también busca en el detalle."""
+    txt = _sin_acentos(str(tipo_solicitud or "")).lower()
+    hits = []
+
+    # Categorías 1, 2, 4, 5 (multi-etiqueta)
+    for nombre, patrones in _CAT_PATRONES:
+        if any(p.search(txt) for p in patrones):
+            hits.append((nombre, None))
+
+    # Categoría 3: ¿la actividad ES medición/levantamiento/BDT?
+    es_cat3 = (any(p.search(txt) for p in _CAT3_GEN_PAT)
+               or any(p.search(txt) for _, pats in _CAT3_SUB_PAT for p in pats))
+    if es_cat3:
+        txt_sub = txt + " " + _sin_acentos(str(detalle or "")).lower()
+        sub_hits = [n for n, pats in _CAT3_SUB_PAT if any(p.search(txt_sub) for p in pats)]
+        if sub_hits:
+            for s in sub_hits:
+                hits.append((CAT3_NOMBRE, s))
+        else:
+            hits.append((CAT3_NOMBRE, CAT3_GENERAL[0]))
+
+    return hits
 
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
@@ -913,12 +967,106 @@ def api_agenda():
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 #=========================
+# API CONTEO
+#=========================
+
+@app.route("/api/conteo")
+def api_conteo():
+    from collections import Counter
+    import traceback
+    try:
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+        if creds_json:
+            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
+        else:
+            creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
+        client = gspread.Client(auth=creds)
+        ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
+
+        valores = ws.get_all_values()
+        if len(valores) < 2:
+            return jsonify({"conteo": {}, "cat3_desglose": {}, "otras": 0,
+                            "sin_clasificar": [], "total": 0})
+        headers = [h.replace("\n", " ").strip() for h in valores[0]]
+        filas = [dict(zip(headers, row)) for row in valores[1:]]
+
+        PISO = datetime(2026, 4, 1).date()
+        HOY = datetime.now().date()
+
+        def fecha_actividad(f):
+            s = str(f.get("FECHA Y HORA", "")).split()
+            if not s:
+                return None
+            partes = s[0].replace("-", "/").split("/")
+            if len(partes) != 3:
+                return None
+            d, m, a = partes
+            if len(a) == 2:
+                a = "20" + a
+            try:
+                if int(m) > 12 and int(d) <= 12:
+                    d, m = m, d
+                return datetime(int(a), int(m), int(d)).date()
+            except (ValueError, TypeError):
+                return None
+
+        conteo = Counter()
+        for n, _ in CATEGORIAS_CONTEO:
+            conteo[n] = 0
+        conteo[CAT3_NOMBRE] = 0
+        cat3_desglose = Counter()
+        for n, _ in CAT3_SUB:
+            cat3_desglose[n] = 0
+        cat3_desglose[CAT3_GENERAL[0]] = 0
+
+        otras = 0
+        sin_clasificar = []
+        total = 0
+        for f in filas:
+            d = fecha_actividad(f)
+            if d is None or d < PISO or d > HOY:
+                continue
+            total += 1
+            hits = clasificar_actividad(
+                f.get("TIPO DE SOLICITUD", ""),
+                f.get("ACTIVIDADES DESARROLLADAS", ""),
+            )
+            if not hits:
+                otras += 1
+                sin_clasificar.append(f.get("TIPO DE SOLICITUD", ""))
+                continue
+            for cat, sub in hits:
+                conteo[cat] += 1
+                if sub:
+                    cat3_desglose[sub] += 1
+
+        return jsonify({
+            "conteo": dict(conteo),
+            "cat3_desglose": dict(cat3_desglose),
+            "otras": otras,
+            "sin_clasificar": sin_clasificar,
+            "total": total,
+            "ventana": {"desde": PISO.strftime("%d/%m/%Y"),
+                        "hasta": HOY.strftime("%d/%m/%Y")},
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
+#=========================
 # RUTA A DASHBOARD
 #=========================
 
 @app.route("/dashboard")
 def dashboard():
     return render_template("dashboard.html")
+
+#=========================
+# RUTA A CONTEO
+#=========================
+
+@app.route("/conteo")
+def conteo_dashboard():
+    return render_template("conteo.html")
 
 if __name__ == "__main__":
     app.run(debug=False)
