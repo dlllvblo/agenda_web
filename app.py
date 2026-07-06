@@ -262,6 +262,7 @@ SYSTEM_RESUMEN = (
     "GLOSARIO DE SIGLAS (usa estos significados EXACTOS):\n"
     "- BDT / BDTs / BDT's: Bienes Distintos a la Tierra (construcciones, cultivos, árboles, cosechas u otros bienes sobre el terreno, distintos de la tierra misma)\n"
     "- COP / COPs / COP's / cop / cops (en cualquier combinación de mayúsculas y minúsculas): Convenio de Ocupación Previa. En plural: Convenios de Ocupación Previa.\n"
+    "- IFREM / ifrem: Instituto de la Función Registral del Estado de México\n"
     "- Regla: si encuentras una sigla que NO está en este glosario, consérvala tal cual aparece. NUNCA inventes ni deduzcas el significado de una sigla."
 )
 
