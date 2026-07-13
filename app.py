@@ -465,15 +465,14 @@ def procesar_agenda(texto):
             hora_txt = ""
 
         # LÍNEA PRINCIPAL
+        match_desc = re.search(r"Descripci[oó]n:\s*([^\n]+)", bloque, re.IGNORECASE)
         match_inline = re.search(r"\d{1,2}:\d{2}\s*(?:hrs?)?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
-        if match_inline:
+        if match_desc:
+            linea_principal = match_desc.group(1).strip()
+        elif match_inline:
             linea_principal = match_inline.group(1).strip()
         else:
             linea_principal = bloque.splitlines()[0].strip()
-        if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?)?\.?', linea_principal, re.IGNORECASE):
-            lineas_bloque = [l.strip() for l in bloque.splitlines() if l.strip()]
-            if len(lineas_bloque) > 1:
-                linea_principal = lineas_bloque[1]
 
         # Cortar linea_principal antes del primer campo conocido
         linea_principal = re.split(
