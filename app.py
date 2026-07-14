@@ -300,6 +300,20 @@ def extraer_nomenclaturas(bloque):
     vistos = set()
     return [c for c in codigos if not (c in vistos or vistos.add(c))]
 
+PARCELA_SUELTA_RE = re.compile(r'(?m)^\s*(P-\d+[A-Z]?)\s*(?:\(([^)]+)\))?\s*$')
+
+def extraer_parcelas_sueltas(bloque):
+    """Extrae líneas sueltas tipo 'P-117' o 'P-116 (Minuta)'."""
+    out = []
+    for m in PARCELA_SUELTA_RE.finditer(bloque):
+        cod = m.group(1)
+        if m.group(2):
+            cod += f" ({m.group(2)})"
+        out.append(cod)
+    # dedup conservando orden
+    vistos = set()
+    return [c for c in out if not (c in vistos or vistos.add(c))]
+
 def integrar_nomenclaturas(resumen, noms):
     """Pega los códigos de forma determinista al resumen de Haiku."""
     if not noms:
@@ -391,6 +405,17 @@ def clasificar_actividad(tipo_solicitud, detalle=""):
 
     return hits
 
+def _hora_24(hh, mm, mer):
+    """Convierte hora a formato 24h. mer = 'A'/'P'/None."""
+    h = int(hh)
+    if mer:
+        mer = mer.lower()
+        if mer.startswith('p') and h != 12:
+            h += 12
+        elif mer.startswith('a') and h == 12:
+            h = 0
+    return f"{h:02d}:{mm}"
+
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
@@ -452,15 +477,24 @@ def procesar_agenda(texto):
         bloque = bloque.replace('\xa0', ' ').strip()
 
         # HORA
-        match_hora = re.search(r"(\d{1,2}:\d{2})\s*(?:hrs?)?\s*[-–—]", bloque, re.IGNORECASE)
-        hora_label_match = re.search(r"Hora:\s*(\d{1,2}:\d{2})", bloque, re.IGNORECASE)
-        hora_sola_match = re.search(r"(\d{1,2}:\d{2})\s*hrs?\b", bloque, re.IGNORECASE)
+        match_hora = re.search(
+            r"(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?\s*(?:hrs?)?\s*[-–—]",
+            bloque, re.IGNORECASE
+        )
+        hora_label_match = re.search(
+            r"Hora:\s*(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?",
+            bloque, re.IGNORECASE
+        )
+        hora_sola_match = re.search(
+            r"(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?|hrs?)\b",
+            bloque, re.IGNORECASE
+        )
         if match_hora:
-            hora_txt = match_hora.group(1).strip()
+            hora_txt = _hora_24(match_hora.group(1), match_hora.group(2), match_hora.group(3))
         elif hora_label_match:
-            hora_txt = hora_label_match.group(1).strip()
+            hora_txt = _hora_24(hora_label_match.group(1), hora_label_match.group(2), hora_label_match.group(3))
         elif hora_sola_match:
-            hora_txt = hora_sola_match.group(1).strip()
+            hora_txt = _hora_24(hora_sola_match.group(1), hora_sola_match.group(2), hora_sola_match.group(3))
         else:
             hora_txt = ""
 
@@ -532,7 +566,7 @@ def procesar_agenda(texto):
 
         estado_geo = ""
         municipio_geo = ""
-        if url and ("goo.gl" in url or "google.com" in url):
+        if url and any(d in url for d in ("goo.gl", "google.com", "share.google")):
             lat, lng = extraer_coordenadas(url)
             if lat is not None:
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
@@ -550,7 +584,7 @@ def procesar_agenda(texto):
         )
 
        # ACTIVIDADES DESARROLLADAS
-        bdts_val = bdts.group(1).strip() if bdts else ""
+        bdts_val = bdts.group(1).strip().rstrip('.').strip() if bdts else ""
         if bdts_val.upper() == "N/A":
             bdts_val = ""
 
@@ -562,7 +596,7 @@ def procesar_agenda(texto):
             r'(propietario: \1)',
             linea_principal
         )
-        nomenclaturas = extraer_nomenclaturas(bloque)
+        nomenclaturas = extraer_nomenclaturas(bloque) + extraer_parcelas_sueltas(bloque)
         resumen_final = integrar_nomenclaturas(
             resumir_actividad(linea_resumen, actividad_detalle),
             nomenclaturas
@@ -578,7 +612,7 @@ def procesar_agenda(texto):
         nucleo = re.search(r"Núcleo Agrario:\s*(.*)", bloque, re.IGNORECASE)
         if not nucleo:
             ejido_inline = re.search(
-                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejido\s+de|Ejido))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\s*\(|\)|,|\.|\n|$)',
+                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\s*\(|\)|,|\.|\n|$)',
                 linea_principal
             )
             if ejido_inline:
@@ -657,7 +691,7 @@ def procesar_agenda(texto):
                 nombre_punto = nombre_punto.strip()
                 url_punto = url_punto.strip()
                 est_p, mun_p = "", ""
-                if "goo.gl" in url_punto or "google.com" in url_punto:
+                if any(d in url_punto for d in ("goo.gl", "google.com", "share.google")):
                     lat, lng = extraer_coordenadas(url_punto)
                     if lat is not None:
                         est_p, mun_p = obtener_estado_municipio(lat, lng)
