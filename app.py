@@ -244,7 +244,7 @@ SYSTEM_RESUMEN = (
     "Reglas:\n"
     "- En pasado, formal, técnica pero clara y directa; concisa (máx. 25 palabras).\n"
     "- Elige el verbo según la acción REAL, no uses siempre la misma fórmula. Guía: "
-    "firma→'Se firmó'; reunión→'Se sostuvo reunión'; recorrido→'Se realizó recorrido'; "
+    "firma→'Se firmó'; reunión→'Se celebró reunión'; recorrido→'Se realizó recorrido'; "
     "acercamiento→'Se efectuó acercamiento'; entrega→'Se entregó'; notificación→'Se notificó'; "
     "verificación→'Se verificó'; levantamiento→'Se levantó'.\n"
     "- Conserva TEXTUAL: números de parcela (ej. MQ-SBA-P109), PKs (ej. pk 44+900), "
