@@ -241,6 +241,14 @@
             .link-dashboard { bottom: 70px; right: 18px; font-size: 13px; }
         }
 
+        .link-conteo {
+            bottom: 115px; /* queda arriba de "Ver Dashboard" */
+        }
+
+        @media (max-width: 480px) {
+            .link-conteo { bottom: 100px; }
+        }
+
     </style>
 </head>
 <body>
@@ -276,7 +284,8 @@
         <img src="/static/footer.png" style="max-width: 400px; width: 80%;">
     </div>
 
-    <a href="/dashboard" class="link-dashboard">Ver Dashboard</a>
+    <a href="/conteo" class="link-dashboard link-conteo">Conteo</a>
+    <a href="/dashboard" class="link-dashboard">Dashboard</a>
 
     <script>
         async function procesar() {
