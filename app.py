@@ -643,6 +643,14 @@ def procesar_agenda(texto):
                 prop_txt = f"{tit_norm} {titulo_inline.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
+            ciudadano_inline = re.search(
+                r'\bC\.\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+)',
+                linea_principal
+            )
+            if ciudadano_inline:
+                prop_txt = f"Sr. {ciudadano_inline.group(1).strip()}"
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        if not particular:
             paren_inline = re.search(
                 r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
                 linea_principal
