@@ -419,6 +419,7 @@ def _hora_24(hh, mm, mer):
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
+    texto = re.sub(r'(?m)^\s*_+|_+\s*$', '', texto)
 
     # --- PROYECTO ---
     proyecto_match = re.search(r"Proyecto\s*(.*)", texto, re.IGNORECASE)
@@ -436,15 +437,11 @@ def procesar_agenda(texto):
             proyecto_final = proyecto_raw                      # 3) último recurso
 
     # --- FECHA ---
-    fecha_match = re.search(
-        r"(?:\w+\s+)?(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})",
-        texto, re.IGNORECASE
-    )
-    if fecha_match:
-        dia = fecha_match.group(1).zfill(2)
-        mes_texto = fecha_match.group(2).lower()
-        anio = fecha_match.group(3)
-        mes = meses.get(mes_texto, "00")
+    fecha_num_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", texto)
+    if fecha_num_match and 1 <= int(fecha_num_match.group(2)) <= 12:
+        dia = fecha_num_match.group(1).zfill(2)
+        mes = fecha_num_match.group(2).zfill(2)
+        anio = fecha_num_match.group(3)
         fecha = f"{dia}/{mes}/{anio}"
         fecha_dt = datetime.strptime(fecha, "%d/%m/%Y")
         fecha_solicitud = (fecha_dt - timedelta(days=1)).strftime("%d/%m/%Y")
@@ -462,7 +459,9 @@ def procesar_agenda(texto):
                 break
 
     # --- BLOQUES ---
-    bloques = re.split(r"\n\s*\d+[\.-]\s*", texto)[1:]
+    partes_texto = re.split(r"\n\s*\d+[\.-]\s*", texto)
+    encabezado = partes_texto[0]
+    bloques = partes_texto[1:]
     if not bloques:
         cuerpo = "\n".join(
             l for l in texto.splitlines()
@@ -493,7 +492,7 @@ def procesar_agenda(texto):
             bloque, re.IGNORECASE
         )
         hora_sola_match = re.search(
-            r"(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?|hrs?)\b",
+            r"(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?|h(?:oras?|rs?))\b",
             bloque, re.IGNORECASE
         )
         if hora_doble_match:
@@ -553,12 +552,20 @@ def procesar_agenda(texto):
             if frente_inline:
                 num = frente_inline.group(1)
                 frente = type('_', (), {'group': lambda self, n: num})()
+        # Fallback encabezado
+        if not frente:
+            frente_enc = re.search(r'\bFrente\s+(\d+)\b', encabezado, re.IGNORECASE)
+            if frente_enc:
+                num = frente_enc.group(1)
+                frente = type('_', (), {'group': lambda self, n: num})()
 
         # POLÍGONO
         poligono = re.search(r"Pol[ií]gono:\s*(.*)", bloque, re.IGNORECASE)
 
         # MUNICIPIO
         municipio_match = re.search(r"Municipio:\s*(.*)", bloque, re.IGNORECASE)
+        if not municipio_match:
+            municipio_match = re.search(r"Municipio:\s*(.*)", encabezado, re.IGNORECASE)
         municipio = municipio_match.group(1).split(',')[0].strip() if municipio_match else ""
 
         # ASISTENTES
@@ -576,6 +583,10 @@ def procesar_agenda(texto):
         url = ""
         if ubicacion:
             url = (ubicacion.group(1) or ubicacion.group(2) or ubicacion.group(3) or "").strip()
+        if not url:
+            url_suelta = re.search(r'(?m)^\s*[-•]?\s*(https?://\S+)\s*$', bloque)
+            if url_suelta:
+                url = url_suelta.group(1).strip()    
 
         estado_geo = ""
         municipio_geo = ""
