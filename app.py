@@ -476,7 +476,14 @@ def procesar_agenda(texto):
     for bloque in bloques:
         bloque = bloque.replace('\xa0', ' ').strip()
 
-        # HORA
+        
+        # HORA DOBLE (dos zonas horarias): "08:00 hrs (Hora Centro) / 09:00 hrs (Hora Nuevo Laredo)"
+        hora_doble_match = re.search(
+            r"(\d{1,2}):(\d{2})\s*hrs?\.?\s*\(\s*Hora\s+([^)]+?)\s*\)\s*/\s*"
+            r"(\d{1,2}):(\d{2})\s*hrs?\.?\s*\(\s*Hora\s+([^)]+?)\s*\)",
+            bloque, re.IGNORECASE
+        )
+        # HORA  
         match_hora = re.search(
             r"(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?\s*(?:hrs?)?\s*[-–—]",
             bloque, re.IGNORECASE
@@ -489,7 +496,13 @@ def procesar_agenda(texto):
             r"(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?|hrs?)\b",
             bloque, re.IGNORECASE
         )
-        if match_hora:
+        if hora_doble_match:
+            h1 = _hora_24(hora_doble_match.group(1), hora_doble_match.group(2), None)
+            z1 = hora_doble_match.group(3).strip()
+            h2 = _hora_24(hora_doble_match.group(4), hora_doble_match.group(5), None)
+            z2 = hora_doble_match.group(6).strip()
+            hora_txt = f"{h1} hrs {z1}\n{h2} hrs {z2}"
+        elif match_hora:
             hora_txt = _hora_24(match_hora.group(1), match_hora.group(2), match_hora.group(3))
         elif hora_label_match:
             hora_txt = _hora_24(hora_label_match.group(1), hora_label_match.group(2), hora_label_match.group(3))
@@ -989,8 +1002,11 @@ def api_agenda():
                 serie[fn] += 1
 
         def hora_de(fh):
-            p = str(fh).split()
-            return p[-1] if len(p) > 1 else ""
+            partes = str(fh).split(maxsplit=1)
+            if len(partes) < 2:
+                return ""
+            m = re.search(r'\d{1,2}:\d{2}', partes[1])
+            return m.group(0) if m else ""
 
         def construir_agenda(filas, piso, tope, fdt, hde, inv):
             items = []
