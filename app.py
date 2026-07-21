@@ -634,6 +634,16 @@ def procesar_agenda(texto):
 
         # NÚCLEO AGRARIO
         nucleo = re.search(r"Núcleo Agrario:\s*(.*)", bloque, re.IGNORECASE)
+        # Fallback 0: lista de ejidos en plural -> "X, Y y Z"
+        if not nucleo:
+            lista_ej = re.search(r'\bejidos\s+de\s+(.+?)(?:\.|\n|$)', linea_principal, re.IGNORECASE)
+            if lista_ej:
+                partes_nuc = [p.strip(' .') for p in
+                              re.split(r'\s*,\s*|\s+y\s+|\s+e\s+', lista_ej.group(1))
+                              if p.strip(' .')]
+                if len(partes_nuc) >= 2:
+                    nucleo_txt = ", ".join(partes_nuc[:-1]) + " y " + partes_nuc[-1]
+                    nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo:
             ejido_inline = re.search(
                 r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\s*\(|\)|,|\.|\n|$)',
