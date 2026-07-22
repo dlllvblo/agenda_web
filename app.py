@@ -546,7 +546,16 @@ def procesar_agenda(texto):
             r"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=\s+(?:BDTs?|Pol[ií]gonos?|Asistentes?|Asiste|Ubicaci[oó]n|Ejido|Municipio|Parcelas):|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
-        # Fallback inline
+        # Fallback inline plural: "Frentes 8, 9, 10, 11 y 12" / "Frentes 3 y 4"
+        if not frente:
+            frentes_multi = re.search(
+                r'\bFrentes?\s+(\d+(?:\s*[,y]\s*\d+)*)', linea_principal, re.IGNORECASE
+            )
+            if frentes_multi and re.search(r'[,y]', frentes_multi.group(1)):
+                nums = re.findall(r'\d+', frentes_multi.group(1))
+                lista = (", ".join(nums[:-1]) + " y " + nums[-1]) if len(nums) > 1 else nums[0]
+                frente = type('_', (), {'group': lambda self, n: lista})()
+        # Fallback inline singular: "F2", "Frente 3"
         if not frente:
             frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
             if frente_inline:
@@ -646,7 +655,10 @@ def procesar_agenda(texto):
                     nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo:
             ejido_inline = re.search(
-                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)(?:\s*\(|\)|,|\.|\n|$)',
+                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
+                r'["\u2018\u2019\u201c\u201d\']?'
+                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)'
+                r'(?:["\u2018\u2019\u201c\u201d\']|\s*\(|\)|,|\.|\n|$)',
                 linea_principal
             )
             if ejido_inline:
