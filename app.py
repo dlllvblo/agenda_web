@@ -80,6 +80,11 @@ _DEP_PATRONES = {canon: [re.compile(_dep_pat(al)) for al in als]
 # Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
 _PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
 _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
+_CLAVES_RE = re.compile(
+    r'\b(' + '|'.join(sorted(mapa_proyectos, key=len, reverse=True)) + r')\b',
+    re.IGNORECASE
+)
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -106,8 +111,20 @@ ARBOL_MUN, MUN_GEOMS, MUN_PROPS = cargar_capas()
 
 
 from urllib.parse import unquote
+_COORDS_CACHE = {}
 
 def extraer_coordenadas(url_maps):
+    """Caché: evita re-expandir el mismo link corto (10s de timeout cada uno)."""
+    if url_maps in _COORDS_CACHE:
+        return _COORDS_CACHE[url_maps]
+    res = _extraer_coordenadas_raw(url_maps)
+    if res is None:
+        res = (None, None)
+    _COORDS_CACHE[url_maps] = res
+    return res
+
+
+def _extraer_coordenadas_raw(url_maps):
     """Extrae lat, lng de un link de Google Maps (corto o expandido)"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -363,7 +380,8 @@ CATEGORIAS_CONTEO = [
     ("13. Censos/Reubicaciones",
      [r'censos?', r'reubicaci(?:on|ones)']),
     ("14. Presentaciones/Entregas",
-     [r'presentaci(?:on|ones)', r'entregas?\s+de', r'recepci(?:on|ones)']),
+     [r'presentaci(?:on|ones)', r'entregas?\s+de', r'recepci(?:on|ones)',
+      r'notificaci(?:on|ones)']),
 ]
 
 CAT3_NOMBRE = "3. Levantamientos Agenda (Topográficos/BDTs Agroforestales y Construcción)"
@@ -394,6 +412,12 @@ def clasificar_actividad(tipo_solicitud, detalle=""):
 
     es_cat3 = (any(p.search(txt) for p in _CAT3_GEN_PAT)
                or any(p.search(txt) for _, pats in _CAT3_SUB_PAT for p in pats))
+
+    # "Firma de BDT's" es firma de documento, no levantamiento en campo
+    if es_cat3 and re.search(r'(?<!\w)firmas?(?!\w)', txt) \
+       and not re.search(r'(?<!\w)(?:medici(?:on|ones)|levantamientos?|topografic)', txt):
+        es_cat3 = False
+
     if es_cat3:
         txt_sub = txt + " " + _sin_acentos(str(detalle or "")).lower()
         sub_hits = [n for n, pats in _CAT3_SUB_PAT if any(p.search(txt_sub) for p in pats)]
@@ -422,7 +446,8 @@ def procesar_agenda(texto):
     texto = re.sub(r'(?m)^\s*_+|_+\s*$', '', texto)
 
     # --- PROYECTO ---
-    proyecto_match = re.search(r"Proyecto\s*(.*)", texto, re.IGNORECASE)
+    proyecto_match = re.search(r"(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
+                               texto, re.IGNORECASE)
     proyecto_raw = proyecto_match.group(1).strip() if proyecto_match else ""
     if not proyecto_raw:
         proyecto_final = "SIN PROYECTO"
@@ -435,7 +460,10 @@ def procesar_agenda(texto):
             proyecto_final = _PROY_POR_NOMBRE[frozenset(_norm(proyecto_raw).split())]
         else:
             proyecto_final = proyecto_raw                      # 3) último recurso
-
+    if proyecto_final not in mapa_proyectos.values():
+        m_clave = _CLAVES_RE.search(texto[:200])
+        if m_clave:
+            proyecto_final = mapa_proyectos[m_clave.group(1).upper()]
     # --- FECHA ---
     fecha_num_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", texto)
     if fecha_num_match and 1 <= int(fecha_num_match.group(2)) <= 12:
@@ -582,6 +610,12 @@ def procesar_agenda(texto):
             r"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n(?:es)?|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
             bloque, re.IGNORECASE
         )
+        # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7")
+        if not frente and asistentes:
+            f_asis = re.search(r'\bF\.?\s*(\d+)\b', asistentes.group(1))
+            if f_asis:
+                num = f_asis.group(1)
+                frente = type('_', (), {'group': lambda self, n: num})()
 
         # UBICACIÓN
         ubicacion = re.search(
@@ -590,12 +624,16 @@ def procesar_agenda(texto):
             re.IGNORECASE
         )
         url = ""
+        texto_ubic = ""
         if ubicacion:
-            url = (ubicacion.group(1) or ubicacion.group(2) or ubicacion.group(3) or "").strip()
+            url = (ubicacion.group(1) or ubicacion.group(2) or "").strip()
+            texto_ubic = (ubicacion.group(3) or "").strip()
         if not url:
             url_suelta = re.search(r'(?m)^\s*[-•]?\s*(https?://\S+)\s*$', bloque)
             if url_suelta:
-                url = url_suelta.group(1).strip()    
+                url = url_suelta.group(1).strip()
+        if not url:
+            url = texto_ubic          # sólo si de plano no hubo link 
 
         estado_geo = ""
         municipio_geo = ""
@@ -926,7 +964,9 @@ def _procesar_buffer(chat_id):
         return
     texto = entry["texto"]
 
-    if "Agenda Proyecto" not in texto and "Fecha:" not in texto:
+    if not (re.search(r'(?i)agenda', texto)
+            or "Fecha:" in texto
+            or _CLAVES_RE.search(texto[:200])):
         telegram_enviar(chat_id, "Eso no parece agenda. Reenvíame el mensaje del grupo tal cual.")
         return
 
