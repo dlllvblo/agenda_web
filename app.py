@@ -312,7 +312,7 @@ def extraer_nomenclaturas(bloque):
         if valor.upper() == "N/A":
             continue
         partes = re.split(r'\s*,\s*|\s+y\s+|\s+e\s+', valor)
-        codigos.extend(p.strip() for p in partes if p.strip())
+        codigos.extend(p.strip(' .') for p in partes if p.strip(' .'))
     # dedup conservando orden
     vistos = set()
     return [c for c in codigos if not (c in vistos or vistos.add(c))]
@@ -331,23 +331,27 @@ def extraer_parcelas_sueltas(bloque):
     vistos = set()
     return [c for c in out if not (c in vistos or vistos.add(c))]
 
-def integrar_nomenclaturas(resumen, noms):
-    """Pega los códigos de forma determinista al resumen de Haiku."""
-    if not noms:
+def _integrar_codigos(resumen, codigos, singular, plural):
+    """Pega códigos determinísticamente al resumen de Haiku.
+       singular/plural = ('la nomenclatura','las nomenclaturas') | ('la parcela','las parcelas')."""
+    if not codigos:
         return resumen
-    # no duplicar códigos que Haiku ya haya conservado del texto
-    faltantes = [n for n in noms if n not in resumen]
+    faltantes = [c for c in codigos if c not in resumen]
     if not faltantes:
         return resumen
     resumen = resumen.rstrip(' .')
     lista = (faltantes[0] if len(faltantes) == 1
              else ", ".join(faltantes[:-1]) + " y " + faltantes[-1])
-    # Si el resumen ya termina en el sustantivo, solo pegamos los códigos
     if re.search(r'(?i)(predios?|pol[ií]gonos?|parcelas?|nomenclaturas?|inmuebles?)$', resumen):
         return f"{resumen}: {lista}"
-    sufijo = ("del polígono con nomenclatura" if len(faltantes) == 1
-              else "de los polígonos con nomenclaturas")
-    return f"{resumen} {sufijo}: {lista}"
+    sufijo = singular if len(faltantes) == 1 else plural
+    return f"{resumen} en {sufijo} {lista}."
+
+def integrar_nomenclaturas(resumen, noms):
+    return _integrar_codigos(resumen, noms, "la nomenclatura", "las nomenclaturas")
+
+def integrar_parcelas(resumen, parcelas):
+    return _integrar_codigos(resumen, parcelas, "la parcela", "las parcelas")
 
 # =========================
 # CONTEO DE ACTIVIDADES POR CATEGORÍA (abril → hoy)
@@ -667,11 +671,9 @@ def procesar_agenda(texto):
             r'(propietario: \1)',
             linea_principal
         )
-        nomenclaturas = extraer_nomenclaturas(bloque) + extraer_parcelas_sueltas(bloque)
-        resumen_final = integrar_nomenclaturas(
-            resumir_actividad(linea_resumen, actividad_detalle),
-            nomenclaturas
-        )
+        resumen_final = resumir_actividad(linea_resumen, actividad_detalle)
+        resumen_final = integrar_nomenclaturas(resumen_final, extraer_nomenclaturas(bloque))
+        resumen_final = integrar_parcelas(resumen_final, extraer_parcelas_sueltas(bloque))
         partes.append(resumen_final)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
