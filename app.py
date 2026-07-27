@@ -297,6 +297,36 @@ def normalizar_capitalizacion(texto):
     )
     return texto
 
+# ============================================================
+# CAMPOS DE AGENDA — fuente única de etiquetas (fragmento regex, SIN ':')
+# Si agregas un campo nuevo, se agrega AQUÍ y todos los regex lo respetan.
+# ============================================================
+CAMPOS = {
+    "hora":         r'Hora',
+    "descripcion":  r'Descripci[oó]n',
+    "frente":       r'Frente|F',
+    "bdts":         r'BDTs?',
+    "nomenclatura": r'Nomenclaturas?',
+    "poligono":     r'Pol[ií]gonos?',
+    "asistentes":   r'Asistentes?|Asisten?|Participa(?:n|ntes)?',
+    "ubicacion":    r'Ubicaci[oó]n(?:es)?|Punto de reuni[oó]n|Punto de encuentro',
+    "ejido":        r'Ejido',
+    "municipio":    r'Municipio',
+    "parcelas":     r'Parcelas',
+}
+
+def frontera_campos(excluir=()):
+    """Lookahead que cae justo antes de la etiqueta ':' de cualquier campo,
+       excluyendo opcionalmente el campo que estás capturando."""
+    pats = [p for k, p in CAMPOS.items() if k not in excluir]
+    return r'(?:' + '|'.join(f'(?:{p})' for p in pats) + r'):'
+
+# Precalculadas una sola vez (evita rearmar la cadena en cada bloque)
+_FRONT_ALL    = frontera_campos()
+_FRONT_BDTS   = frontera_campos(excluir=('bdts',))
+_FRONT_FRENTE = frontera_campos(excluir=('frente',))
+_FRONT_ASIS   = frontera_campos(excluir=('asistentes',))
+
 # =========================
 # NOMENCLATURAS
 # =========================
@@ -552,9 +582,9 @@ def procesar_agenda(texto):
         else:
             linea_principal = bloque.splitlines()[0].strip()
 
-        # Cortar linea_principal antes del primer campo conocido
+        # linea principal
         linea_principal = re.split(
-            r'\s+(?=(?:F:|BDTs?:|Nomenclaturas?:|Pol[ií]gonos?:|Asistentes?:|Ubicaci[oó]n:|Ejido:|Municipio:|Hora:|Parcelas:))',
+            rf'\s+(?={_FRONT_ALL})',
             linea_principal, maxsplit=1, flags=re.IGNORECASE
         )[0].strip()
 
@@ -575,7 +605,7 @@ def procesar_agenda(texto):
 
         # FRENTE
         frente = re.search(
-            r"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=\s+(?:BDTs?|Pol[ií]gonos?|Asistentes?|Asiste|Ubicaci[oó]n|Ejido|Municipio|Parcelas):|[\r\n]|$)",
+            rf"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=\s+{_FRONT_FRENTE}|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
         # Fallback inline plural: "Frentes 8, 9, 10, 11 y 12" / "Frentes 3 y 4"
@@ -611,7 +641,7 @@ def procesar_agenda(texto):
 
         # ASISTENTES
         asistentes = re.search(
-            r"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+(?:Ubicaci[oó]n(?:es)?|Punto de reuni[oó]n|Punto de encuentro|BDTs?|Pol[ií]gonos?|Ejido|Municipio|Parcelas):|$)",
+            rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+{_FRONT_ASIS}|$)",
             bloque, re.IGNORECASE
         )
         # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7")
@@ -654,7 +684,7 @@ def procesar_agenda(texto):
 
         # BDTs
         bdts = re.search(
-            r"BDTs?:\s*([^\n]+?)(?=\s+(?:F:|Pol[ií]gonos?:|Asistentes?:|Ubicaci[oó]n:|Ejido:|Municipio:|Parcelas:)|$)",
+            rf"BDTs?:\s*([^\n]+?)(?=\s+{_FRONT_BDTS}|$)",
             bloque, re.IGNORECASE
         )
 
