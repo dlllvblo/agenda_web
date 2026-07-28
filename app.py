@@ -580,7 +580,23 @@ def procesar_agenda(texto):
         elif match_inline:
             linea_principal = match_inline.group(1).strip()
         else:
-            linea_principal = bloque.splitlines()[0].strip()
+            # Formato TQI: "Hora: 10:00hrs" en una línea y la actividad (sin etiqueta) en la de abajo.
+            # Toma la primera línea de contenido: ni etiqueta de campo, ni URL, ni número suelto.
+            linea_principal = ""
+            for l in bloque.splitlines():
+                l = l.strip()
+                if not l:
+                    continue
+                if re.match(rf'(?i){_FRONT_ALL}', l):   # Hora:, Asistentes:, Ubicación:, etc.
+                    continue
+                if re.match(r'https?://', l):
+                    continue
+                if re.fullmatch(r'\d+[\.\-]?', l):       # "1." suelto si el split dejó rastro
+                    continue
+                linea_principal = l
+                break
+            if not linea_principal:                      # respaldo: comportamiento anterior
+                linea_principal = bloque.splitlines()[0].strip()
 
         # linea principal
         linea_principal = re.split(
