@@ -80,6 +80,10 @@ _DEP_PATRONES = {canon: [re.compile(_dep_pat(al)) for al in als]
 # Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
 _PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
 _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
+# Alias de claves mal escritas / transposiciones comunes -> clave canónica
+_ALIAS_CLAVE = {
+    'tqm': 'tmq',   # transposición típica de TMQ
+}
 _CLAVES_RE = re.compile(
     r'\b(' + '|'.join(sorted(mapa_proyectos, key=len, reverse=True)) + r')\b',
     re.IGNORECASE
@@ -488,6 +492,7 @@ def procesar_agenda(texto):
     else:
         toks = proyecto_raw.split()
         ultimo = _norm(toks[-1]) if toks else ""
+        ultimo = _ALIAS_CLAVE.get(ultimo, ultimo)
         if ultimo in _PROY_POR_CLAVE:                          # 1) por clave (TMQ)
             proyecto_final = _PROY_POR_CLAVE[ultimo]
         elif frozenset(_norm(proyecto_raw).split()) in _PROY_POR_NOMBRE:   # 2) por nombre
