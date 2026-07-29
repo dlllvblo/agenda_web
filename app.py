@@ -1040,7 +1040,23 @@ def _procesar_buffer(chat_id):
             return
         total = subir_a_sheets(filas)
         proyecto = filas[0].get("PROYECTO FERROVIARIO", "")
-        telegram_enviar(chat_id, f"✅ Subí {total} actividad(es) a Sheets ({proyecto}).")
+
+        # Filas con link de maps que NO geocodificó (link roto/404 o fuera de capa)
+        sin_geo = [
+            f for f in filas
+            if any(d in f.get("UBICACIÓN", "") for d in ("goo.gl", "google.com", "share.google"))
+            and not f.get("ESTADO", "").strip()
+        ]
+        msg = f"✅ Subí {total} actividad(es) a Sheets ({proyecto})."
+        if sin_geo:
+            detalle = "\n".join(
+                f"• {(p[-1] if len(p := f.get('FECHA Y HORA','').split()) > 1 else '--')}  "
+                f"{f.get('TIPO DE SOLICITUD','')[:40]}"
+                for f in sin_geo
+            )
+            msg += (f"\n\n⚠️ {len(sin_geo)} sin ubicación (link roto o inválido). "
+                    f"Llena ESTADO/MUNICIPIO a mano:\n{detalle}")
+        telegram_enviar(chat_id, msg)
     except Exception as e:
         telegram_enviar(chat_id, f"❌ Error: {e}")
 
