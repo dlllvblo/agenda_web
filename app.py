@@ -351,6 +351,14 @@ def extraer_nomenclaturas(bloque):
     vistos = set()
     return [c for c in codigos if not (c in vistos or vistos.add(c))]
 
+INLINE_NOM_RE = re.compile(r'\b[A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?\b')
+
+def extraer_nomenclaturas_inline(texto):
+    """Códigos tipo MQ-SMM-P081 que vienen dentro del texto de la actividad."""
+    vistos = set()
+    return [c for c in INLINE_NOM_RE.findall(texto or "")
+            if not (c in vistos or vistos.add(c))]
+
 PARCELA_SUELTA_RE = re.compile(r'(?m)^\s*(P-\d+[A-Z]?)\s*(?:\(([^)]+)\))?\s*$')
 
 def extraer_parcelas_sueltas(bloque):
@@ -549,6 +557,14 @@ def procesar_agenda(texto):
             r"(\d{1,2}):(\d{2})\s*hrs?\.?\s*\(\s*Hora\s+([^)]+?)\s*\)",
             bloque, re.IGNORECASE
         )
+
+        # HORA DOBLE (misma zona): "Hora: 10:00 hrs y 12:00 hrs"
+        hora_doble_y_match = re.search(
+            r"Hora:\s*(\d{1,2}):(\d{2})\s*(?:hrs?\.?)?\s+y\s+"
+            r"(\d{1,2}):(\d{2})\s*(?:hrs?\.?)?",
+            bloque, re.IGNORECASE
+        )
+
         # HORA  
         match_hora = re.search(
             r"(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?\s*(?:hrs?)?\s*[-–—]",
@@ -568,6 +584,10 @@ def procesar_agenda(texto):
             h2 = _hora_24(hora_doble_match.group(4), hora_doble_match.group(5), None)
             z2 = hora_doble_match.group(6).strip()
             hora_txt = f"{h1} hrs {z1}\n{h2} hrs {z2}"
+        elif hora_doble_y_match:
+            h1 = _hora_24(hora_doble_y_match.group(1), hora_doble_y_match.group(2), None)
+            h2 = _hora_24(hora_doble_y_match.group(3), hora_doble_y_match.group(4), None)
+            hora_txt = f"{h1} hrs y {h2} hrs"
         elif match_hora:
             hora_txt = _hora_24(match_hora.group(1), match_hora.group(2), match_hora.group(3))
         elif hora_label_match:
@@ -682,7 +702,7 @@ def procesar_agenda(texto):
         texto_ubic = ""
         if ubicacion:
             url = (ubicacion.group(1) or ubicacion.group(2) or "").strip()
-            texto_ubic = (ubicacion.group(3) or "").strip()
+            texto_ubic = (ubicacion.group(3) or "").strip().rstrip('.').strip()
         if not url:
             url_suelta = re.search(r'(?m)^\s*[-•]?\s*(https?://\S+)\s*$', bloque)
             if url_suelta:
@@ -718,12 +738,21 @@ def procesar_agenda(texto):
         if bdts_val:
             partes.append(bdts_val)
         linea_resumen = re.sub(
-            r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+            r'\(\s*titular(?:es)?:?\s+([^)]+?)\s*\)',
             r'(propietario: \1)',
-            linea_principal
+            linea_principal, flags=re.IGNORECASE
+        )
+        linea_resumen = re.sub(
+            r'\((?!\s*(?:Frente|F|propietario)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+            r'(propietario: \1)',
+            linea_resumen
         )
         resumen_final = resumir_actividad(linea_resumen, actividad_detalle)
         resumen_final = integrar_nomenclaturas(resumen_final, extraer_nomenclaturas(bloque))
+        noms_lbl = extraer_nomenclaturas(bloque)
+        noms_inl = extraer_nomenclaturas_inline(linea_principal)
+        noms = noms_lbl + [c for c in noms_inl if c not in noms_lbl]
+        resumen_final = integrar_nomenclaturas(resumen_final, noms)
         resumen_final = integrar_parcelas(resumen_final, extraer_parcelas_sueltas(bloque))
         partes.append(resumen_final)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
@@ -786,6 +815,15 @@ def procesar_agenda(texto):
             )
             if ciudadano_inline:
                 prop_txt = f"Sr. {ciudadano_inline.group(1).strip()}"
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        if not particular:
+            titular_inline = re.search(
+                r'\(\s*titular(?:es)?:?\s+'
+                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)\s*\)',
+                linea_principal, re.IGNORECASE
+            )
+            if titular_inline:
+                prop_txt = titular_inline.group(1).strip()
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             paren_inline = re.search(
