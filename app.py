@@ -823,7 +823,13 @@ def procesar_agenda(texto):
                 linea_principal, re.IGNORECASE
             )
             if titular_inline:
-                prop_txt = titular_inline.group(1).strip()
+                nombre = titular_inline.group(1).strip()
+                if re.match(r'(?i)(sr|sra|c)\.?\b', nombre):
+                    prop_txt = nombre
+                else:
+                    primer = nombre.split()[0].lower()
+                    trato = "Sra." if primer.endswith(('a', 'á')) else "Sr."
+                    prop_txt = f"{trato} {nombre}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             paren_inline = re.search(
