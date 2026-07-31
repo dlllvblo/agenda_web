@@ -338,20 +338,33 @@ NOMEN_RE = re.compile(
     r'(?im)^\s*(?:Nomenclaturas?|Pol[ií]gonos?)\s*:\s*(.+?)\s*$'
 )
 
+INLINE_NOM_RE = re.compile(r'\b[A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?\b')
+
 def extraer_nomenclaturas(bloque):
-    """Extrae lista de códigos de líneas Nomenclatura(s):/Polígono(s):"""
+    """Extrae códigos de 'Nomenclaturas:/Polígonos:', ya sea en la MISMA línea
+       (Nomenclaturas: MQ-.., MQ-..) o con la etiqueta sola y los códigos en las
+       líneas de abajo (formato TMQ de BDTs). Ignora el sufijo '(09:30 hrs)'."""
     codigos = []
-    for m in NOMEN_RE.finditer(bloque):
-        valor = m.group(1).strip()
-        if valor.upper() == "N/A":
+    for m in re.finditer(r'(?im)^\s*(?:Nomenclaturas?|Pol[ií]gonos?)\s*:(.*)$', bloque):
+        region = m.group(1)                       # lo que va tras el ':' en la misma línea
+        # anexa líneas siguientes hasta la próxima etiqueta de campo o línea vacía
+        for linea in bloque[m.end():].splitlines():
+            if not linea.strip():
+                continue
+            if re.match(rf'(?i)\s*{_FRONT_ALL}', linea):
+                break
+            region += "\n" + linea
+        if region.strip().upper() == "N/A":
             continue
-        partes = re.split(r'\s*,\s*|\s+y\s+|\s+e\s+', valor)
-        codigos.extend(p.strip(' .') for p in partes if p.strip(' .'))
+        codigos.extend(INLINE_NOM_RE.findall(region))
     # dedup conservando orden
     vistos = set()
     return [c for c in codigos if not (c in vistos or vistos.add(c))]
 
-INLINE_NOM_RE = re.compile(r'\b[A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?\b')
+# code -> hora, para "MQ-NOP-160 (09:30 hrs)" en bloques BDT con horas por nomenclatura
+_NOM_HORA_RE = re.compile(
+    r'\b([A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?)\b[^\n(]*\((\d{1,2}):(\d{2})\s*(?:hrs?)?\)'
+)
 
 def extraer_nomenclaturas_inline(texto):
     """Códigos tipo MQ-SMM-P081 que vienen dentro del texto de la actividad."""
@@ -406,7 +419,7 @@ CATEGORIAS_CONTEO = [
     ("4. Infografía", [r'infografias?']),
     ("5. Cartografía", [r'cartografias?', r'planos?', r'mapas?']),
     ("6. Firmas de convenios y actas",
-     [r'firmas?']),
+     [r'firmas?', r'minutas?']),
     ("7. Acercamientos/Sensibilización/Negociación",
      [r'a[cs]ercamientos?', r'sensibilizaci(?:on|ones)', r'negociaci(?:on|ones)',
       r'atenci(?:on|ones)', r'citas?\s+con']),
@@ -486,6 +499,25 @@ def _hora_24(hh, mm, mer):
             h = 0
     return f"{h:02d}:{mm}"
 
+def _separar_adicionales(bloques):
+    """Un párrafo tras línea en blanco se separa como bloque propio si parece
+       actividad (trae Hora / punto de reunión / ubicación). Recupera los mensajes
+       'adicionales' sin número que Telegram pega al final del último bloque."""
+    salida = []
+    for b in bloques:
+        trozos = re.split(r'\n[ \t]*\n', b)
+        salida.append(trozos[0])
+        for extra in trozos[1:]:
+            extra = extra.strip()
+            if not extra:
+                continue
+            if re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}|Punto de reuni[oó]n|Ubicaci[oó]n',
+                         extra):
+                salida.append(extra)
+            else:                       # ruido: no lo pierdas, pégalo al bloque previo
+                salida[-1] += "\n" + extra
+    return salida
+
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
@@ -537,6 +569,10 @@ def procesar_agenda(texto):
     partes_texto = re.split(r"\n\s*\d+[\.-]\s*", texto)
     encabezado = partes_texto[0]
     bloques = partes_texto[1:]
+
+    # Párrafos "adicionales" sin número que quedan pegados al último bloque numerado.
+    bloques = _separar_adicionales(bloques)
+
     if not bloques:
         cuerpo = "\n".join(
             l for l in texto.splitlines()
@@ -630,7 +666,13 @@ def procesar_agenda(texto):
         )[0].strip()
 
         linea_principal = re.sub(r'^\d{1,2}:\d{2}\s*(?:hrs?)?\.?\s*[-–—]\s*', '', linea_principal, flags=re.IGNORECASE).strip()
+        # Preámbulo de mensajes "adicionales": saludo + "adicional a la agenda..." + "del Frente N,"
+        linea_principal = re.sub(r'(?i)^\s*buen[oa]s?\s+(?:noches|tardes|d[ií]as)[\s,\.]*', '', linea_principal).strip()
+        linea_principal = re.sub(r'(?i)^\s*adicional\s+a\s+la\s+agenda[^,]*,\s*', '', linea_principal).strip()
+        linea_principal = re.sub(r'(?i)^\s*del\s+Frente\s+\d+[\s,]*', '', linea_principal).strip()
         linea_principal = re.sub(r'^[-–—\s]+', '', linea_principal).strip()
+        if linea_principal[:1].islower():
+            linea_principal = linea_principal[0].upper() + linea_principal[1:]
         linea_principal = re.sub(r'\.$', '', linea_principal).strip()
         linea_principal = normalizar_capitalizacion(linea_principal)
 
@@ -663,6 +705,12 @@ def procesar_agenda(texto):
             frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
             if frente_inline:
                 num = frente_inline.group(1)
+                frente = type('_', (), {'group': lambda self, n: num})()
+        # Fallback bloque crudo: "del Frente 4" que ya se limpió de la línea principal
+        if not frente:
+            frente_bloque = re.search(r'\bFrente\s+(\d+)\b', bloque, re.IGNORECASE)
+            if frente_bloque:
+                num = frente_bloque.group(1)
                 frente = type('_', (), {'group': lambda self, n: num})()
         # Fallback encabezado
         if not frente:
@@ -717,11 +765,18 @@ def procesar_agenda(texto):
             if lat is not None:
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
 
-        # UBICACIONES MÚLTIPLES
+        # UBICACIONES MÚLTIPLES  (a) Punto: url   |   - Punto: url
         ubicaciones_multi = re.findall(
             r'^\s*(?:[a-zA-Z][\)\.]|[-•])\s*(.+?):\s*(https?://\S+)',
             bloque, re.MULTILINE
         )
+        # UBICACIONES POR CÓDIGO: "MQ-NOP-160: https://..." (una fila por nomenclatura)
+        ubic_por_codigo = []
+        if not ubicaciones_multi:
+            ubic_por_codigo = re.findall(
+                r'^\s*([A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?)\s*:\s*(https?://\S+)',
+                bloque, re.MULTILINE
+            )
 
         # BDTs
         bdts = re.search(
@@ -747,17 +802,31 @@ def procesar_agenda(texto):
             r'(propietario: \1)',
             linea_resumen
         )
-        resumen_final = resumir_actividad(linea_resumen, actividad_detalle)
-        resumen_final = integrar_nomenclaturas(resumen_final, extraer_nomenclaturas(bloque))
+        resumen_base = resumir_actividad(linea_resumen, actividad_detalle)
         noms_lbl = extraer_nomenclaturas(bloque)
         noms_inl = extraer_nomenclaturas_inline(linea_principal)
         noms = noms_lbl + [c for c in noms_inl if c not in noms_lbl]
-        resumen_final = integrar_nomenclaturas(resumen_final, noms)
-        resumen_final = integrar_parcelas(resumen_final, extraer_parcelas_sueltas(bloque))
+        if ubic_por_codigo:
+            # cada fila integrará SU propio código más abajo; aquí solo base + parcelas
+            resumen_final = integrar_parcelas(resumen_base, extraer_parcelas_sueltas(bloque))
+        else:
+            resumen_final = integrar_nomenclaturas(resumen_base, noms)
+            resumen_final = integrar_parcelas(resumen_final, extraer_parcelas_sueltas(bloque))
         partes.append(resumen_final)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
-        # EJIDO
+        # ADICIONALES (uso común, etc.): líneas sueltas que se ANEXAN a la actividad
+        adicionales = [re.sub(r'\.\s*$', '', l).strip()
+                       for l in re.findall(r'(?im)^\s*(Adicionales?\b[^\n]*?)\s*$', bloque)]
+        if adicionales:
+            extra = " | ".join(adicionales)
+            actividades_desarrolladas = (
+                f"{actividades_desarrolladas} | {extra}" if actividades_desarrolladas else extra
+            )
+
+        # MINUTAS: cada "Minuta ... (hh:mm hrs)" es una fila propia (hora propia si la trae,
+        # hereda asistentes/ubicación/frente/proyecto del bloque). Se emite más abajo.
+        minutas = re.findall(r'(?im)^\s*(Minuta\b[^\n]*?)\s*$', bloque)
         ejido_match = re.search(r"(?m)^\s*Ejido:?\s*(.*)", bloque, re.IGNORECASE)
         ejido = ejido_match.group(1).strip() if ejido_match else ""
 
@@ -875,7 +944,27 @@ def procesar_agenda(texto):
                 "ACTIVIDADES DESARROLLADAS": acts_desarrolladas,
             }
 
-        if ubicaciones_multi:
+        if ubic_por_codigo:
+            # Una fila por nomenclatura: cada una con SU código, hora y ubicación.
+            hora_por_cod = {mm.group(1): f"{int(mm.group(2)):02d}:{mm.group(3)}"
+                            for mm in _NOM_HORA_RE.finditer(bloque)}
+            for cod, url_punto in ubic_por_codigo:
+                cod = cod.strip()
+                url_punto = url_punto.strip()
+                est_p, mun_p = "", ""
+                if any(d in url_punto for d in ("goo.gl", "google.com", "share.google")):
+                    lat, lng = extraer_coordenadas(url_punto)
+                    if lat is not None:
+                        est_p, mun_p = obtener_estado_municipio(lat, lng)
+                acts_cod = integrar_nomenclaturas(resumen_final, [cod])
+                if bdts_val:
+                    acts_cod = f"{bdts_val} | {acts_cod}"
+                fila = armar_fila(url_punto, est_p, mun_p, acts_cod)
+                hp = hora_por_cod.get(cod)
+                if hp:
+                    fila["FECHA Y HORA"] = f"{fecha} {hp}"
+                filas.append(fila)
+        elif ubicaciones_multi:
             for nombre_punto, url_punto in ubicaciones_multi:
                 nombre_punto = nombre_punto.strip()
                 url_punto = url_punto.strip()
@@ -891,6 +980,17 @@ def procesar_agenda(texto):
                 filas.append(armar_fila(url_punto, est_p, mun_p, acts_punto))
         else:
             filas.append(armar_fila(url, estado_geo, municipio_geo, actividades_desarrolladas))
+
+        # Filas de MINUTA (heredan ubicación/asistentes/frente del bloque, hora propia)
+        for minuta_txt in minutas:
+            minuta_txt = re.sub(r'\.\s*$', '', minuta_txt.strip())
+            mh = re.search(r'\((\d{1,2}):(\d{2})\s*(?:hrs?)?\)', minuta_txt)
+            hora_min = f"{int(mh.group(1)):02d}:{mh.group(2)}" if mh else hora_txt
+            texto_min = re.sub(r'\s*\(\d{1,2}:\d{2}\s*(?:hrs?)?\)', '', minuta_txt).strip()
+            fila_min = armar_fila(url, estado_geo, municipio_geo, texto_min)
+            fila_min["TIPO DE SOLICITUD"] = texto_min
+            fila_min["FECHA Y HORA"] = f"{fecha} {hora_min}"
+            filas.append(fila_min)
 
     return filas
 
