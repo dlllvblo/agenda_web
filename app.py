@@ -1144,7 +1144,12 @@ def telegram_webhook():
         entry = _mensajes_buffer.get(chat_id)
         if entry:
             entry["timer"].cancel()
-            entry["texto"] += texto
+            # Telegram parte mensajes SOLO cuando pasan de ~4096 chars. Si el buffer
+            # previo es corto, este fragmento es un mensaje NUEVO (ej. el adicional del
+            # Frente 4) -> sepáralo con renglón en blanco. Si ya viene largo, es una
+            # continuación partida por Telegram -> pégala sin separador.
+            sep = "\n\n" if len(entry["texto"]) < 3000 else ""
+            entry["texto"] += sep + texto
         else:
             entry = {"texto": texto}
             _mensajes_buffer[chat_id] = entry
