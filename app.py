@@ -17,7 +17,7 @@ app = Flask(__name__)
 # =========================
 mapa_proyectos = {
         'TAP':   '1. AIFA - PACHUCA',
-        'TIGDL': '5. IRAPUATO - GUADALAJARA',
+        'TIG':   '5. IRAPUATO - GUADALAJARA',
         'TMLM':  '6. MAZATLÁN - LOS MOCHIS',
         'TMQ':   '2. MÉXICO - QUERÉTARO',
         'TQI':   '3. QUERÉTARO - IRAPUATO',
@@ -84,7 +84,7 @@ _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.value
 _ALIAS_CLAVE = {
     'tqm': 'tmq',   # transposición típica de TMQ
 }
-_CLAVES_RE = re.compile(
+_CLAVES_RE = re.compile(    
     r'\b(' + '|'.join(sorted(mapa_proyectos, key=len, reverse=True)) + r')\b',
     re.IGNORECASE
 )
@@ -755,8 +755,9 @@ def procesar_agenda(texto):
             url_suelta = re.search(r'(?m)^\s*[-•]?\s*(https?://\S+)\s*$', bloque)
             if url_suelta:
                 url = url_suelta.group(1).strip()
-        if not url:
-            url = texto_ubic          # sólo si de plano no hubo link 
+        if not url:                   # dirección + link en la misma línea: saca el link
+            m_embed = re.search(r'https?://\S+', texto_ubic)
+            url = m_embed.group(0).strip() if m_embed else texto_ubic 
 
         estado_geo = ""
         municipio_geo = ""
@@ -911,6 +912,27 @@ def procesar_agenda(texto):
                 ya_es_lugar = {nucleo_txt.lower(), ejido.lower(), municipio.lower()}
                 if prop_txt.lower() not in ya_es_lugar:        # guardia: no es lugar ya detectado
                     particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        # Fallback: "familia"
+        if not particular:
+            familia_inline = re.search(
+                r'(?i:\bfamilia)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)',
+                linea_principal
+            )
+            if familia_inline:
+                prop_txt = f"Familia {familia_inline.group(1).strip()}"
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        # Fallback: nombre de pila solo tras señor(a)/propietari(o/a)
+        if not particular:
+            _LUGARES_PROP = {"ejido","ejidos","nucleo","núcleo","municipio","palacio",
+                             "presidencia","comisariado","poligono","polígono","parcela"}
+            persona_simple = re.search(
+                r'(?i:\b(se[ñn]or[a]?|propietari[ao]))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b',
+                linea_principal
+            )
+            if persona_simple and persona_simple.group(2).lower() not in _LUGARES_PROP:
+                trato = "Sra." if re.match(r'(?i)(?:se[ñn]ora|propietaria)', persona_simple.group(1)) else "Sr."
+                prop_txt = f"{trato} {persona_simple.group(2).strip()}"
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
