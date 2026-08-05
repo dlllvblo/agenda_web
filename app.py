@@ -654,6 +654,8 @@ def procesar_agenda(texto):
                     continue
                 if re.fullmatch(r'\d+[\.\-]?', l):       # "1." suelto si el split dejó rastro
                     continue
+                if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?|h|[ap]\.?\s*m\.?)?\.?', l, re.IGNORECASE):
+                    continue                             # hora suelta sin etiqueta: "10:30hrs"
                 linea_principal = l
                 break
             if not linea_principal:                      # respaldo: comportamiento anterior
@@ -733,12 +735,21 @@ def procesar_agenda(texto):
             rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+{_FRONT_ASIS}|$)",
             bloque, re.IGNORECASE
         )
-        # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7")
+        # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7", "DEFENSA F3 y F4")
         if not frente and asistentes:
-            f_asis = re.search(r'\bF\.?\s*(\d+)\b', asistentes.group(1))
-            if f_asis:
-                num = f_asis.group(1)
-                frente = type('_', (), {'group': lambda self, n: num})()
+            # multi: "F3 y F4", "F8, F9 y F10" (la F puede o no repetirse por número)
+            f_multi = re.search(
+                r'\bF\.?\s*(\d+(?:\s*[,y]\s*F?\.?\s*\d+)+)', asistentes.group(1), re.IGNORECASE
+            )
+            if f_multi:
+                nums = re.findall(r'\d+', f_multi.group(1))
+                lista = ", ".join(nums[:-1]) + " y " + nums[-1] if len(nums) > 1 else nums[0]
+                frente = type('_', (), {'group': lambda self, n: lista})()
+            else:
+                f_asis = re.search(r'\bF\.?\s*(\d+)\b', asistentes.group(1))
+                if f_asis:
+                    num = f_asis.group(1)
+                    frente = type('_', (), {'group': lambda self, n: num})()
 
         # UBICACIÓN
         ubicacion = re.search(
