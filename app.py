@@ -511,7 +511,7 @@ def _separar_adicionales(bloques):
             extra = extra.strip()
             if not extra:
                 continue
-            if re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}|Punto de reuni[oó]n|Ubicaci[oó]n',
+            if re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}|Punto de reuni[oó]n|Punto de encuentro',
                          extra):
                 salida.append(extra)
             else:                       # ruido: no lo pierdas, pégalo al bloque previo
