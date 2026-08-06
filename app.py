@@ -191,6 +191,15 @@ def obtener_estado_municipio(lat, lng):
         return p["NOM_ENT"], p["NOM_MUN"]
     return "", ""
 
+def _es_url_maps(url):
+    """True solo si es un enlace de mapa geocodificable.
+       Excluye Meet/Docs/Calendar que comparten dominio google.com pero no llevan coords."""
+    if not url:
+        return False
+    if any(x in url for x in ("meet.google.com", "docs.google.com", "calendar.google.com")):
+        return False
+    return any(d in url for d in ("goo.gl", "google.com", "share.google"))
+
 def resumir_actividad(linea, detalle=""):
     """Resume la actividad en UNA línea técnica y concisa, combinando línea principal
        y campo Actividad si existe. Fallback: texto original."""
@@ -772,7 +781,7 @@ def procesar_agenda(texto):
 
         estado_geo = ""
         municipio_geo = ""
-        if url and any(d in url for d in ("goo.gl", "google.com", "share.google")):
+        if _es_url_maps(url):
             lat, lng = extraer_coordenadas(url)
             if lat is not None:
                 estado_geo, municipio_geo = obtener_estado_municipio(lat, lng)
@@ -985,7 +994,7 @@ def procesar_agenda(texto):
                 cod = cod.strip()
                 url_punto = url_punto.strip()
                 est_p, mun_p = "", ""
-                if any(d in url_punto for d in ("goo.gl", "google.com", "share.google")):
+                if _es_url_maps(url_punto):
                     lat, lng = extraer_coordenadas(url_punto)
                     if lat is not None:
                         est_p, mun_p = obtener_estado_municipio(lat, lng)
@@ -1002,7 +1011,7 @@ def procesar_agenda(texto):
                 nombre_punto = nombre_punto.strip()
                 url_punto = url_punto.strip()
                 est_p, mun_p = "", ""
-                if any(d in url_punto for d in ("goo.gl", "google.com", "share.google")):
+                if _es_url_maps(url_punto):
                     lat, lng = extraer_coordenadas(url_punto)
                     if lat is not None:
                         est_p, mun_p = obtener_estado_municipio(lat, lng)
@@ -1226,7 +1235,7 @@ def _procesar_buffer(chat_id):
         # Filas con link de maps que NO geocodificó (link roto/404 o fuera de capa)
         sin_geo = [
             f for f in filas
-            if any(d in f.get("UBICACIÓN", "") for d in ("goo.gl", "google.com", "share.google"))
+            if _es_url_maps(f.get("UBICACIÓN", ""))
             and not f.get("ESTADO", "").strip()
         ]
         msg = f"✅ Subí {total} actividad(es) a Sheets ({proyecto})."
