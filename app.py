@@ -383,6 +383,14 @@ def extraer_nomenclaturas_inline(texto):
 
 PARCELA_SUELTA_RE = re.compile(r'(?m)^\s*(P-\d+[A-Z]?)\s*(?:\(([^)]+)\))?\s*$')
 
+PARCELA_PUNTO_RE = re.compile(r'\bP\.\s?\d+[A-Z]?\b')
+
+def extraer_parcelas_punto(texto):
+    """Códigos de parcela tipo 'P.815' (con punto) dentro del texto de la actividad."""
+    vistos = set()
+    return [m.group(0).replace('. ', '.') for m in PARCELA_PUNTO_RE.finditer(texto or "")
+            if not (m.group(0) in vistos or vistos.add(m.group(0)))]
+
 def extraer_parcelas_sueltas(bloque):
     """Extrae líneas sueltas tipo 'P-117' o 'P-116 (Minuta)'."""
     out = []
@@ -711,6 +719,17 @@ def procesar_agenda(texto):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
                 lista = (", ".join(nums[:-1]) + " y " + nums[-1]) if len(nums) > 1 else nums[0]
                 frente = type('_', (), {'group': lambda self, n: lista})()
+        # Fallback inline rango: "F1-F3" / "F2 - F5" / "F1-3" -> "1, 2 y 3"
+        if not frente:
+            frente_rango = re.search(
+                r'\bF\.?\s*(\d+)\s*[-–—]\s*F?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE
+            )
+            if frente_rango:
+                _a, _b = int(frente_rango.group(1)), int(frente_rango.group(2))
+                if _a <= _b and _b - _a <= 20:
+                    _nums = [str(n) for n in range(_a, _b + 1)]
+                    _lista = ", ".join(_nums[:-1]) + " y " + _nums[-1] if len(_nums) > 1 else _nums[0]
+                    frente = type('_', (), {'group': lambda self, n: _lista})()        
         # Fallback inline singular: "F2", "Frente 3"
         if not frente:
             frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
@@ -832,7 +851,8 @@ def procesar_agenda(texto):
             resumen_final = integrar_parcelas(resumen_base, extraer_parcelas_sueltas(bloque))
         else:
             resumen_final = integrar_nomenclaturas(resumen_base, noms)
-            resumen_final = integrar_parcelas(resumen_final, extraer_parcelas_sueltas(bloque))
+            _parcelas = extraer_parcelas_sueltas(bloque) + extraer_parcelas_punto(linea_principal)
+            resumen_final = integrar_parcelas(resumen_final, _parcelas)
         partes.append(resumen_final)
         actividades_desarrolladas = " | ".join(partes) if partes else ""
 
@@ -863,6 +883,17 @@ def procesar_agenda(texto):
                 if len(partes_nuc) >= 2:
                     nucleo_txt = ", ".join(partes_nuc[:-1]) + " y " + partes_nuc[-1]
                     nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
+        # Fallback multi-ejido entrecomillado: ejido "A", ejido "B" y ejido "C"
+        if not nucleo:
+            _ejq = re.findall(
+                r'(?i:\bEjidos?\s+(?:de\s+)?)[\u201c\u2018"\']([^\u201c\u201d\u2018\u2019"\']+)[\u201d\u2019"\']',
+                linea_principal
+            )
+            _vist = set(); _ejq = [e.strip() for e in _ejq
+                                   if e.strip() and not (e.strip().lower() in _vist or _vist.add(e.strip().lower()))]
+            if len(_ejq) >= 2:
+                nucleo_txt = ", ".join(_ejq[:-1]) + " y " + _ejq[-1]
+                nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo:
             ejido_inline = re.search(
                 r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
