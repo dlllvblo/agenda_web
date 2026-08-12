@@ -719,17 +719,14 @@ def procesar_agenda(texto):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
                 lista = (", ".join(nums[:-1]) + " y " + nums[-1]) if len(nums) > 1 else nums[0]
                 frente = type('_', (), {'group': lambda self, n: lista})()
-        # Fallback inline rango: "F1-F3" / "F2 - F5" / "F1-3" -> "1, 2 y 3"
+        # Fallback frentes por extremos: "F1-F3" / "F4-F7" -> "F1-F3" (participan SOLO los extremos)
         if not frente:
             frente_rango = re.search(
                 r'\bF\.?\s*(\d+)\s*[-–—]\s*F?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE
             )
             if frente_rango:
-                _a, _b = int(frente_rango.group(1)), int(frente_rango.group(2))
-                if _a <= _b and _b - _a <= 20:
-                    _nums = [str(n) for n in range(_a, _b + 1)]
-                    _lista = ", ".join(_nums[:-1]) + " y " + _nums[-1] if len(_nums) > 1 else _nums[0]
-                    frente = type('_', (), {'group': lambda self, n: _lista})()        
+                _lista = f"{frente_rango.group(1)}-{frente_rango.group(2)}"
+                frente = type('_', (), {'group': lambda self, n: _lista})()        
         # Fallback inline singular: "F2", "Frente 3"
         if not frente:
             frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
