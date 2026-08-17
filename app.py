@@ -652,7 +652,7 @@ def procesar_agenda(texto):
             hora_txt = ""
 
         # LÍNEA PRINCIPAL
-        match_desc = re.search(r"Descripci[oó]n:\s*([^\n]+)", bloque, re.IGNORECASE)
+        match_desc = re.search(r"(?:Descripci[oó]n|Actividad):\s*([^\n]+)", bloque, re.IGNORECASE)
         match_inline = re.search(r"\d{1,2}:\d{2}\s*(?:hrs?)?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
         if match_desc:
             linea_principal = match_desc.group(1).strip()
