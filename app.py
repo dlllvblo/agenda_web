@@ -316,6 +316,7 @@ def normalizar_capitalizacion(texto):
 # ============================================================
 CAMPOS = {
     "hora":         r'Hora',
+    "horario":      r'Horario',
     "descripcion":  r'Descripci[oó]n',
     "frente":       r'Frente|F',
     "bdts":         r'BDTs?',
