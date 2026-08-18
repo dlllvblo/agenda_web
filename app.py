@@ -773,6 +773,20 @@ def procesar_agenda(texto):
             municipio_match = re.search(r"Municipio:\s*(.*)", encabezado, re.IGNORECASE)
         municipio = municipio_match.group(1).split(',')[0].strip() if municipio_match else ""
 
+        # MUNICIPIO/ESTADO alterno: si vienen escritos en el propio texto, ej.
+        # "(Frente 9 - Municipio San Juan del Río, Querétaro)", como respaldo
+        # por si el link de Maps no logra geolocalizar.
+        municipio_inline_match = re.search(
+            r'Municipio\s+([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.\'\s]+?)\s*,\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+)\s*\)',
+            bloque
+        )
+        if municipio_inline_match:
+            municipio_txt_inline = municipio_inline_match.group(1).strip()
+            estado_txt_inline = _sin_acentos(municipio_inline_match.group(2).strip()).upper()
+        else:
+            municipio_txt_inline = ""
+            estado_txt_inline = ""
+
         # ASISTENTES
         asistentes = re.search(
             rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+{_FRONT_ASIS}|$)",
@@ -1017,8 +1031,8 @@ def procesar_agenda(texto):
                     poligono.group(1).strip()
                     if poligono and poligono.group(1).strip().upper() != "N/A" else ""
                 ),
-                "ESTADO": est_geo.upper(),
-                "MUNICIPIO": municipio if municipio else mun_g,
+                "ESTADO": (est_geo.upper() if est_geo else estado_txt_inline),
+                "MUNICIPIO": municipio if municipio else (mun_g if mun_g else municipio_txt_inline),
                 "EJIDO": ejido,
                 "NÚCLEO AGRARIO": (nucleo.group(1).strip() if nucleo else ""),
                 "PROPIETARIOS PROPIEDAD PRIVADA": (
