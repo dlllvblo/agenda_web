@@ -26,6 +26,23 @@ mapa_proyectos = {
         'TSLPS': '8. SAN LUIS POTOSÍ - SALTILLO',
     }
 
+# =========================
+# SHEET DEL JEFE (solo TSNL, TIG, TQI)
+# =========================
+SPREADSHEET_ID_JEFE = "1umdQV1Qt4FpkXXu_dzZPh_XKV7x1-EYsbUQucd5Zf9w"
+
+PROYECTOS_JEFE = {
+    mapa_proyectos["TSNL"],
+    mapa_proyectos["TIG"],
+    mapa_proyectos["TQI"],
+}
+
+DIRECTOR_TRAMO = {
+    mapa_proyectos["TSNL"]: "ING. LUIS HUMBERTO QUIROZ ESCAMILLA",
+    mapa_proyectos["TIG"]:  "ARQ. MIGUEL ÁNGEL SÁNCHEZ CORTES",
+    mapa_proyectos["TQI"]:  "ING. MARTÍN FLORES BAILÓN",
+}
+
 def _norm(s):
     s = s or ""
     s = re.sub(r'^\s*\d+\.\s*', '', s)                       # quita "4. " inicial
@@ -1096,7 +1113,44 @@ def subir_a_sheets(filas):
         datos.append(nueva_fila)
 
     worksheet.append_rows(datos, value_input_option="USER_ENTERED")
+
+    # --- Replicar actividades de TSNL/TIG/TQI al sheet del jefe ---
+    filas_jefe = [f for f in filas if f.get("PROYECTO FERROVIARIO", "") in PROYECTOS_JEFE]
+    if filas_jefe:
+        try:
+            _subir_a_sheet_jefe(client, filas_jefe)
+        except Exception as e:
+            print(f"[sheet jefe] No se pudo replicar: {e}")
+
     return len(filas)
+
+
+def _subir_a_sheet_jefe(client, filas_jefe):
+    spreadsheet_jefe = client.open_by_key(SPREADSHEET_ID_JEFE)
+    ws_jefe = spreadsheet_jefe.get_worksheet(0)
+    headers_jefe = ws_jefe.row_values(1)
+    columna_a_jefe = ws_jefe.col_values(1)
+
+    ultimo_jefe = 0
+    if len(columna_a_jefe) > 1:
+        try:
+            ultimo_jefe = int(columna_a_jefe[-1])
+        except:
+            ultimo_jefe = 0
+
+    inicio_jefe = ultimo_jefe + 1
+    datos_jefe = []
+    for i, fila in enumerate(filas_jefe):
+        nueva_fila = [inicio_jefe + i]
+        for header in headers_jefe[1:]:
+            if header.strip().upper() == "DIRECTOR DEL TRAMO":
+                valor = DIRECTOR_TRAMO.get(fila.get("PROYECTO FERROVIARIO", ""), "")
+            else:
+                valor = fila.get(header, "")
+            nueva_fila.append(valor)
+        datos_jefe.append(nueva_fila)
+
+    ws_jefe.append_rows(datos_jefe, value_input_option="USER_ENTERED")
 
 @app.route("/")
 def index():
