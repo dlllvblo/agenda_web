@@ -63,7 +63,7 @@ DEP_ALIASES = {
     "RAN":      ["RAN", "REGISTRO AGRARIO NACIONAL"],
     "SEDENA":   ["SEDENA", "DEFENSA", "SDN"],   # DEFENSA == SEDENA
     "SICT":     ["SICT", "VINCULACION"],        # Vinculación es unidad de SICT
-    "ATTRAPI":  ["ATTRAPI", "ATRAPI"],
+    "ATTRAPI":  ["ATTRAPI", "ATRAPPI", "ATRAPI"],
     "PA":       ["PA", "P.A.", "PROCURADURIA AGRARIA"],
     "FIFONAFE": ["FIFONAFE"],
     "INDAABIN": ["INDAABIN", "INDABIN"],
@@ -357,6 +357,18 @@ _FRONT_ALL    = frontera_campos()
 _FRONT_BDTS   = frontera_campos(excluir=('bdts',))
 _FRONT_FRENTE = frontera_campos(excluir=('frente',))
 _FRONT_ASIS   = frontera_campos(excluir=('asistentes',))
+
+def _frontera_fuera_parentesis(texto, patron):
+    """Como re.search, pero ignora coincidencias que caigan dentro de un
+       paréntesis todavía sin cerrar (ej. '(Frente 12 - Municipio: Querétaro)'
+       donde 'Municipio:' es una nota entre paréntesis, no una etiqueta de
+       campo nueva). Devuelve el índice de inicio de la primera coincidencia
+       "real" (fuera de paréntesis), o None si no hay ninguna así."""
+    for m in re.finditer(patron, texto, re.IGNORECASE):
+        antes = texto[:m.start()]
+        if antes.count('(') <= antes.count(')'):
+            return m.start()
+    return None
 
 # =========================
 # NOMENCLATURAS
@@ -697,10 +709,13 @@ def procesar_agenda(texto):
                 linea_principal = bloque.splitlines()[0].strip()
 
         # linea principal
-        linea_principal = re.split(
-            rf'\s+(?={_FRONT_ALL})',
-            linea_principal, maxsplit=1, flags=re.IGNORECASE
-        )[0].strip()
+        # (recorta solo si la siguiente etiqueta de campo cae FUERA de un
+        #  paréntesis sin cerrar; evita truncar en casos como
+        #  "...(Frente 12 - Municipio: Querétaro)" donde "Municipio:" es
+        #  parte de la nota entre paréntesis, no un campo nuevo real)
+        _idx_frontera = _frontera_fuera_parentesis(linea_principal, rf'\s+(?={_FRONT_ALL})')
+        if _idx_frontera is not None:
+            linea_principal = linea_principal[:_idx_frontera].strip()
 
         linea_principal = re.sub(r'^\d{1,2}:\d{2}\s*(?:hrs?)?\.?\s*[-–—]\s*', '', linea_principal, flags=re.IGNORECASE).strip()
         # Preámbulo de mensajes "adicionales": saludo + "adicional a la agenda..." + "del Frente N,"
