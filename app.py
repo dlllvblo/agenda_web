@@ -787,6 +787,10 @@ def procesar_agenda(texto):
         if not municipio_match:
             municipio_match = re.search(r"Municipio:\s*(.*)", encabezado, re.IGNORECASE)
         municipio = municipio_match.group(1).split(',')[0].strip() if municipio_match else ""
+        if municipio_match and municipio.endswith(')'):
+            linea_actual = bloque[:municipio_match.start()].rsplit('\n', 1)[-1]
+            if linea_actual.count('(') > linea_actual.count(')'):
+                municipio = municipio[:-1].strip()
 
         # MUNICIPIO/ESTADO alterno: si vienen escritos en el propio texto, ej.
         # "(Frente 9 - Municipio San Juan del Río, Querétaro)", como respaldo
