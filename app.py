@@ -944,7 +944,7 @@ def procesar_agenda(texto):
                 nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo:
             ejido_inline = re.search(
-                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
+                r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
                 r'["\u2018\u2019\u201c\u201d\']?'
                 r'([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)'
                 r'(?:["\u2018\u2019\u201c\u201d\']|\s*\(|\)|,|\.|\n|$)',
