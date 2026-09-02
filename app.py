@@ -744,18 +744,21 @@ def procesar_agenda(texto):
             bloque, re.IGNORECASE
         )
         # Fallback inline plural: "Frentes 8, 9, 10, 11 y 12" / "Frentes 3 y 4"
+        # (se busca en todo el bloque, no solo en la línea principal: en la agenda
+        #  suele venir en su propia línea, ej. "...Zapata\nFrentes 4 y 5\nAsistentes:...")
         if not frente:
             frentes_multi = re.search(
-                r'\bFrentes?\s+(\d+(?:\s*[,y]\s*\d+)*)', linea_principal, re.IGNORECASE
+                r'\bFrentes?\s+(\d+(?:\s*[,y]\s*\d+)*)', bloque, re.IGNORECASE
             )
             if frentes_multi and re.search(r'[,y]', frentes_multi.group(1)):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
                 lista = (", ".join(nums[:-1]) + " y " + nums[-1]) if len(nums) > 1 else nums[0]
                 frente = type('_', (), {'group': lambda self, n: lista})()
         # Fallback frentes por extremos: "F1-F3" / "F4-F7" -> "F1-F3" (participan SOLO los extremos)
+        # (también en todo el bloque: suele venir como "Proyecto TMQ (F1-F3)" en su propia línea)
         if not frente:
             frente_rango = re.search(
-                r'\bF\.?\s*(\d+)\s*[-–—]\s*F?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE
+                r'\bF\.?\s*(\d+)\s*[-–—]\s*F?\.?\s*(\d+)\b', bloque, re.IGNORECASE
             )
             if frente_rango:
                 _lista = f"{frente_rango.group(1)}-{frente_rango.group(2)}"
@@ -805,6 +808,25 @@ def procesar_agenda(texto):
         else:
             municipio_txt_inline = ""
             estado_txt_inline = ""
+
+        # MUNICIPIO plural: "Frente 11 – Municipios de Pedro Escobedo, El Marqués
+        # y Colón, Querétaro" -> junta TODOS los municipios listados (el geocodificado
+        # del link de Maps solo captura el punto exacto, no la lista completa).
+        municipios_multi_match = re.search(r'Municipios\s+de\s+([^\n]+)', bloque, re.IGNORECASE)
+        municipio_multi_txt = ""
+        if municipios_multi_match:
+            _partes_mun = [p.strip(' .') for p in
+                           re.split(r'\s*,\s*', municipios_multi_match.group(1).strip())
+                           if p.strip(' .')]
+            if len(_partes_mun) >= 2:
+                _lugares_mun = _partes_mun[:-1]          # el último elemento es el Estado
+                _sub_mun = re.split(r'\s+y\s+', _lugares_mun[-1], maxsplit=1)
+                if len(_sub_mun) == 2:
+                    _lugares_mun = _lugares_mun[:-1] + _sub_mun
+                municipio_multi_txt = (
+                    ", ".join(_lugares_mun[:-1]) + " y " + _lugares_mun[-1]
+                    if len(_lugares_mun) > 1 else _lugares_mun[0]
+                )
 
         # ASISTENTES
         asistentes = re.search(
@@ -1051,7 +1073,7 @@ def procesar_agenda(texto):
                     if poligono and poligono.group(1).strip().upper() != "N/A" else ""
                 ),
                 "ESTADO": (est_geo.upper() if est_geo else estado_txt_inline),
-                "MUNICIPIO": municipio if municipio else (mun_g if mun_g else municipio_txt_inline),
+                "MUNICIPIO": municipio if municipio else (municipio_multi_txt if municipio_multi_txt else (mun_g if mun_g else municipio_txt_inline)),
                 "EJIDO": ejido,
                 "NÚCLEO AGRARIO": (nucleo.group(1).strip() if nucleo else ""),
                 "PROPIETARIOS PROPIEDAD PRIVADA": (
