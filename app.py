@@ -752,7 +752,7 @@ def procesar_agenda(texto):
             )
             if frentes_multi and re.search(r'[,y]', frentes_multi.group(1)):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
-                lista = (", ".join(nums[:-1]) + " y " + nums[-1]) if len(nums) > 1 else nums[0]
+                lista = "-".join(nums)
                 frente = type('_', (), {'group': lambda self, n: lista})()
         # Fallback frentes por extremos: "F1-F3" / "F4-F7" -> "F1-F3" (participan SOLO los extremos)
         # (también en todo el bloque: suele venir como "Proyecto TMQ (F1-F3)" en su propia línea)
