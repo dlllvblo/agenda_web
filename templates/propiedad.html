@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propiedad · Tipo de Propiedad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#d7d7d7;
+    --panel:#FFFFFF;
+    --panel-2:#FBF7EF;
+    --board:#F7F0E2;
+    --line:#a42145;
+    --line-soft:#ECE0CC;
+    --guinda-deep:#6E152E; --guinda:#8E1B3A;
+    --verde-deep:#245C4F; --verde:#2F8270;
+    --dorado:#A8803F; --dorado-bright:#BC945A; --arena:#C9A86A;
+    --text:#3A2A22;
+    --text-strong:#6E152E;
+    --muted:#5A4636;
+    --muted-2:#74604C;
+    --radius:14px;
+    --shadow:0 10px 30px -12px rgba(110,21,46,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1100px 560px at 82% -10%, rgba(188,148,90,.18), transparent 60%),
+      radial-gradient(900px 500px at 0% 110%, rgba(162,30,66,.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh; padding:18px;
+  }
+  .mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+  .topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 20px;margin-bottom:16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .brand .logo{width:42px;height:42px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--guinda),var(--guinda-deep));
+    display:grid;place-items:center;box-shadow:0 4px 12px -4px rgba(110,21,46,.4),inset 0 1px 0 rgba(255,255,255,.18)}
+  .brand .logo svg{width:23px;height:23px}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--text-strong)}
+  .brand .sub{font-size:.61rem;letter-spacing:.32em;color:var(--dorado);text-transform:uppercase;margin-top:5px;font-weight:600}
+  .topbar .spacer{flex:1 1 40px}
+  .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
+  .ventana b{color:var(--text-strong);font-weight:600}
+  .refresh{display:inline-flex;align-items:center;gap:8px;background:var(--board);color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;cursor:pointer;transition:border-color .18s,background .18s}
+  .refresh:hover{border-color:var(--guinda);background:#fff}
+  .refresh:focus-visible{outline:2px solid var(--guinda);outline-offset:2px}
+  .refresh svg{width:14px;height:14px}
+  .refresh.spin svg{animation:spin .8s linear}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .banner{display:none;background:rgba(162,30,66,.10);border:1px solid var(--guinda);color:var(--guinda-deep);
+    padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem;font-family:'IBM Plex Mono',monospace}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+  .panel-head h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-strong)}
+  .panel-head .tag{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2);letter-spacing:.1em;border:1px solid var(--line);padding:3px 8px;border-radius:6px}
+  .span12{grid-column:span 12}.span7{grid-column:span 7}.span5{grid-column:span 5}
+
+  .totalbar{display:flex;align-items:center;gap:26px;flex-wrap:wrap;justify-content:center}
+  .totalbar .item{display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center}
+  .totalbar .item .t{font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
+  .totalbar .item .n{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;font-weight:700;color:var(--text-strong);line-height:1}
+  .totalbar .sep{width:1px;height:38px;background:var(--line-soft)}
+
+  .chart-wrap{position:relative;width:100%}
+  .h-dough{height:280px}
+  .dough-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+  .dough-center .n{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;line-height:1;color:var(--text-strong)}
+  .dough-center .t{font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);margin-top:4px}
+
+  .load-row{display:grid;grid-template-columns:26px 1fr 86px;align-items:center;gap:14px;padding:11px 0;border-top:1px solid var(--line-soft)}
+  .load-row:first-child{border-top:none}
+  .load-rank{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:600;color:var(--muted-2);text-align:center}
+  .load-row.lead .load-rank{color:var(--dorado)}
+  .load-id .nombre{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.86rem;color:var(--text);display:flex;align-items:center;gap:7px}
+  .load-id .nombre::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--c);flex:0 0 auto}
+  .load-bar{position:relative;height:16px;border-radius:6px;background:var(--board);border:1px solid var(--line);overflow:hidden;margin-top:6px}
+  .load-bar .fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:5px;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--c) 70%,#fff),var(--c));
+    transition:width 1s cubic-bezier(.2,.8,.2,1)}
+  .load-num{text-align:right;font-family:'Space Grotesk',sans-serif}
+  .load-num .n{font-size:1.3rem;font-weight:700;color:var(--c)}
+  .load-num .pct{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2)}
+  .empty{color:var(--muted-2);font-size:.8rem;padding:20px 0;text-align:center}
+
+  footer{margin-top:18px;text-align:center;font-size:.64rem;color:var(--muted-2);letter-spacing:.08em}
+  footer .mono{color:var(--muted)}
+
+  @media (max-width:1040px){.span7,.span5{grid-column:span 12}}
+  @media (max-width:640px){body{padding:12px}.load-row{grid-template-columns:20px 1fr 70px;gap:10px}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18"/><path d="M5 21V9l7-6 7 6v12"/><path d="M9 21v-6h6v6"/>
+        </svg>
+      </div>
+      <div><h1>Tipo de Propiedad</h1><div class="sub">Distribución General</div></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="ventana" id="ventana">—</div>
+    <button class="refresh" id="refreshBtn" aria-label="Actualizar desde Google Sheets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8E1B3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      Actualizar
+    </button>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="grid">
+
+    <div class="panel span12">
+      <div class="totalbar">
+        <div class="item"><span class="t">Actividades registradas</span><span class="n mono" id="t-total">0</span></div>
+        <div class="sep"></div>
+        <div class="item"><span class="t">Tipos de propiedad</span><span class="n mono" id="t-tipos">0</span></div>
+        <div class="sep"></div>
+        <div class="item"><span class="t">Sin dato</span><span class="n mono" id="t-sindato">0</span></div>
+      </div>
+    </div>
+
+    <div class="panel span5">
+      <div class="panel-head"><h2>Distribución</h2><span class="tag">SHEET · EN VIVO</span></div>
+      <div class="chart-wrap h-dough">
+        <canvas id="propChart"></canvas>
+        <div class="dough-center"><div class="n mono" id="propTot">0</div><div class="t">actividades</div></div>
+      </div>
+    </div>
+
+    <div class="panel span7">
+      <div class="panel-head"><h2>Tipo de propiedad</h2><span class="tag">CONTEO Y %</span></div>
+      <div id="lista"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span class="mono">Registro Agrario Nacional · Dirección General Territorial</span>
+  </footer>
+
+<script>
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const PALETA=['#8E1B3A','#245C4F','#A8803F','#B5772E','#6E7C58','#6E152E',
+              '#2F8270','#9C5A3E','#4E7C70','#C9A86A','#B04A4A','#5A7A8E',
+              '#7A5C8E','#8A6A2E'];
+const COLOR_SINDATO='#A8957F';
+
+function countUp(el,target,dur=900){
+  if(reduceMotion){el.textContent=Math.round(target).toLocaleString('es-MX');return;}
+  const from=parseFloat(el.dataset.cur||'0'),start=performance.now();
+  (function tick(now){const t=Math.min(1,(now-start)/dur),e=1-Math.pow(1-t,3);
+    el.textContent=Math.round(from+(target-from)*e).toLocaleString('es-MX');
+    if(t<1)requestAnimationFrame(tick);else el.dataset.cur=target;})(start);
+}
+
+Chart.defaults.color='#3A2A22';
+Chart.defaults.font.family="'IBM Plex Mono', monospace";Chart.defaults.font.size=11;
+const tip={backgroundColor:'#FFFFFF',borderColor:'#E2D3B8',borderWidth:1,titleColor:'#6E152E',bodyColor:'#3A2A22',
+  padding:11,cornerRadius:9,titleFont:{family:"'Space Grotesk'",weight:'600'},boxPadding:4};
+
+let propChart;
+function buildChart(){
+  propChart=new Chart(document.getElementById('propChart'),{type:'doughnut',
+    data:{labels:[],datasets:[{data:[],backgroundColor:[],borderColor:'#FFFFFF',borderWidth:3,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,pointStyle:'circle',padding:9,font:{size:10}}},tooltip:tip}}});
+}
+
+function renderLista(nombres,conteo,colores,total,sinDato){
+  const el=document.getElementById('lista');el.innerHTML='';
+  if(!nombres.length && !sinDato){el.innerHTML='<div class="empty">Sin datos en el Sheet todavía.</div>';return;}
+  const max=Math.max(1,...nombres.map(n=>conteo[n]),sinDato);
+  const filas=nombres.map((n,i)=>({nombre:n,v:conteo[n],c:colores[i]}));
+  if(sinDato>0){filas.push({nombre:'Sin dato',v:sinDato,c:COLOR_SINDATO});}
+  filas.forEach((f,i)=>{
+    const pct=total?Math.round(f.v/total*100):0;
+    const row=document.createElement('div');
+    row.className='load-row'+(i===0?' lead':'');row.style.setProperty('--c',f.c);
+    row.innerHTML='<div class="load-rank">'+String(i+1).padStart(2,'0')+'</div>'+
+      '<div class="load-id"><div class="nombre">'+f.nombre+'</div><div class="load-bar"><div class="fill"></div></div></div>'+
+      '<div class="load-num"><div class="n">'+f.v+'</div><div class="pct">'+pct+'% del total</div></div>';
+    el.appendChild(row);
+    requestAnimationFrame(()=>{row.querySelector('.fill').style.width=(f.v/max*100)+'%';});
+  });
+}
+
+async function cargar(){
+  const banner=document.getElementById('banner');
+  banner.style.display='none';
+  try{
+    const r=await fetch("/api/tipo_propiedad");
+    const j=await r.json();
+    if(j.error){
+      banner.style.display='block';
+      banner.textContent="Error al leer el Sheet: "+j.error;
+      console.error(j.error, j.trace);
+      return;
+    }
+
+    const conteo=j.conteo||{};
+    const sinDato=j.sin_dato||0;
+    const total=j.total||0;
+    const nombres=Object.keys(conteo).sort((a,b)=>conteo[b]-conteo[a]);
+    const colores=nombres.map((_,i)=>PALETA[i%PALETA.length]);
+
+    document.getElementById('ventana').textContent="Actualizado: "+new Date().toLocaleString('es-MX');
+    countUp(document.getElementById('t-total'),total);
+    countUp(document.getElementById('t-tipos'),nombres.length);
+    countUp(document.getElementById('t-sindato'),sinDato);
+    countUp(document.getElementById('propTot'),total);
+
+    propChart.data.labels=nombres.concat(sinDato>0?['Sin dato']:[]);
+    propChart.data.datasets[0].data=nombres.map(n=>conteo[n]).concat(sinDato>0?[sinDato]:[]);
+    propChart.data.datasets[0].backgroundColor=colores.concat(sinDato>0?[COLOR_SINDATO]:[]);
+    propChart.update();
+
+    renderLista(nombres,conteo,colores,total,sinDato);
+  }catch(err){
+    banner.style.display='block';
+    banner.textContent="No se pudo conectar con /api/tipo_propiedad. ¿Está corriendo Flask?";
+    console.error(err);
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click',e=>{
+  const b=e.currentTarget;b.classList.add('spin');setTimeout(()=>b.classList.remove('spin'),800);
+  cargar();
+});
+
+buildChart();
+cargar();
+</script>
+</body>
+</html>

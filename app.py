@@ -1633,6 +1633,55 @@ def api_conteo():
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 #=========================
+# API TIPO DE PROPIEDAD
+#=========================
+
+@app.route("/api/tipo_propiedad")
+def api_tipo_propiedad():
+    from collections import Counter
+    import traceback
+    try:
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+        if creds_json:
+            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
+        else:
+            creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
+        client = gspread.Client(auth=creds)
+        ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
+
+        valores = ws.get_all_values()
+        if len(valores) < 2:
+            return jsonify({"conteo": {}, "sin_dato": 0, "total": 0})
+        headers = [h.replace("\n", " ").strip() for h in valores[0]]
+        filas = [dict(zip(headers, row)) for row in valores[1:]]
+
+        conteo = Counter()
+        display = {}
+        sin_dato = 0
+        total = 0
+        for f in filas:
+            if not any((v or "").strip() for v in f.values()):
+                continue   # renglón totalmente vacío al final del Sheet
+            total += 1
+            valor = re.sub(r'\s+', ' ', (f.get("TIPO DE PROPIEDAD", "") or "")).strip()
+            if not valor or valor.upper() == "N/A":
+                sin_dato += 1
+                continue
+            clave = valor.lower()
+            conteo[clave] += 1
+            display.setdefault(clave, valor)
+
+        conteo_final = {display[k]: v for k, v in conteo.items()}
+
+        return jsonify({
+            "conteo": conteo_final,
+            "sin_dato": sin_dato,
+            "total": total,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
+#=========================
 # RUTA A DASHBOARD
 #=========================
 
@@ -1647,6 +1696,14 @@ def dashboard():
 @app.route("/conteo")
 def conteo_dashboard():
     return render_template("conteo.html")
+
+#=========================
+# RUTA A TIPO DE PROPIEDAD
+#=========================
+
+@app.route("/propiedad")
+def propiedad_dashboard():
+    return render_template("propiedad.html")
 
 if __name__ == "__main__":
     app.run(debug=False)
