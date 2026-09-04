@@ -101,10 +101,29 @@ _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.value
 _ALIAS_CLAVE = {
     'tqm': 'tmq',   # transposición típica de TMQ
 }
-_CLAVES_RE = re.compile(    
+_CLAVES_RE = re.compile(
     r'\b(' + '|'.join(sorted(mapa_proyectos, key=len, reverse=True)) + r')\b',
     re.IGNORECASE
 )
+
+# Abreviaturas de tramo tipo "MEX-QRO" que a veces reemplazan la clave (TMQ) en el
+# encabezado. Agrega aquí más conforme aparezcan (ej. "IRAP-GDL": "TIG").
+ABREV_TRAMO = {
+    "MEX-QRO": "TMQ",
+}
+_ABREV_TRAMO_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(k).replace(r'\-', r'\s*-\s*')
+                       for k in sorted(ABREV_TRAMO, key=len, reverse=True)) + r')\b',
+    re.IGNORECASE
+)
+
+def _resolver_abrev_tramo(texto):
+    """Busca una abreviatura de tramo (ej. 'MEX-QRO') y devuelve su clave (TMQ), o None."""
+    m = _ABREV_TRAMO_RE.search(texto)
+    if not m:
+        return None
+    clave = re.sub(r'\s*-\s*', '-', m.group(1).upper())
+    return ABREV_TRAMO.get(clave)
 
 
 SCOPES = [
@@ -334,7 +353,7 @@ def normalizar_capitalizacion(texto):
 CAMPOS = {
     "hora":         r'Hora',
     "horario":      r'Horario',
-    "descripcion":  r'Descripci[oó]n',
+    "descripcion":  r'Descripci[oó]n|Asunto',
     "frente":       r'Frente|F',
     "bdts":         r'BDTs?',
     "nomenclatura": r'Nomenclaturas?',
@@ -561,7 +580,7 @@ def _separar_adicionales(bloques):
             if re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}|Punto de reuni[oó]n|Punto de encuentro',
                          extra):
                 salida.append(extra)
-            else:                       # ruido: no lo pierdas, pégalo al bloque previo
+            else:                       
                 salida[-1] += "\n" + extra
     return salida
 
@@ -580,16 +599,20 @@ def procesar_agenda(texto):
         toks = proyecto_raw.split()
         ultimo = _norm(toks[-1]) if toks else ""
         ultimo = _ALIAS_CLAVE.get(ultimo, ultimo)
-        if ultimo in _PROY_POR_CLAVE:                          # 1) por clave (TMQ)
+        if ultimo in _PROY_POR_CLAVE:                          
             proyecto_final = _PROY_POR_CLAVE[ultimo]
-        elif frozenset(_norm(proyecto_raw).split()) in _PROY_POR_NOMBRE:   # 2) por nombre
+        elif frozenset(_norm(proyecto_raw).split()) in _PROY_POR_NOMBRE:   
             proyecto_final = _PROY_POR_NOMBRE[frozenset(_norm(proyecto_raw).split())]
         else:
-            proyecto_final = proyecto_raw                      # 3) último recurso
+            proyecto_final = proyecto_raw                      
     if proyecto_final not in mapa_proyectos.values():
         m_clave = _CLAVES_RE.search(texto[:200])
         if m_clave:
             proyecto_final = mapa_proyectos[m_clave.group(1).upper()]
+        else:
+            clave_abrev = _resolver_abrev_tramo(texto[:200])
+            if clave_abrev:
+                proyecto_final = mapa_proyectos[clave_abrev]
     # --- FECHA ---
     fecha_num_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", texto)
     if fecha_num_match and 1 <= int(fecha_num_match.group(2)) <= 12:
@@ -650,11 +673,11 @@ def procesar_agenda(texto):
 
         # HORA  
         match_hora = re.search(
-            r"(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?\s*(?:hrs?)?\s*[-–—]",
+            r"(\d{1,2}):(\d{2})(?:\s*([AaPp])\.?\s*[Mm]\.?)?\s*(?:hrs?)?\s*[-–—]",
             bloque, re.IGNORECASE
         )
         hora_label_match = re.search(
-            r"Hora:\s*(\d{1,2}):(\d{2})\s*([AaPp])?\.?\s*[Mm]?\.?",
+            r"Hora:\s*(\d{1,2}):(\d{2})(?:\s*([AaPp])\.?\s*[Mm]\.?)?",
             bloque, re.IGNORECASE
         )
         hora_sola_match = re.search(
@@ -681,7 +704,7 @@ def procesar_agenda(texto):
             hora_txt = ""
 
         # LÍNEA PRINCIPAL
-        match_desc = re.search(r"(?:Descripci[oó]n|Actividad):\s*([^\n]+)", bloque, re.IGNORECASE)
+        match_desc = re.search(r"(?im)^\s*(?:Descripci[oó]n|Actividad|Asunto)\b\s*:?\s*(\S[^\n]*)", bloque)
         match_inline = re.search(r"\d{1,2}:\d{2}\s*(?:hrs?)?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
         if match_desc:
             linea_principal = match_desc.group(1).strip()
@@ -740,7 +763,7 @@ def procesar_agenda(texto):
 
         # FRENTE
         frente = re.search(
-            rf"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=\s+{_FRONT_FRENTE}|[\r\n]|$)",
+            rf"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_FRENTE}|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
         # Fallback inline plural: "Frentes 8, 9, 10, 11 y 12" / "Frentes 3 y 4"
@@ -752,6 +775,16 @@ def procesar_agenda(texto):
             )
             if frentes_multi and re.search(r'[,y]', frentes_multi.group(1)):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
+                lista = "-".join(nums)
+                frente = type('_', (), {'group': lambda self, n: lista})()
+        # Fallback inline plural con la palabra repetida: "Frente 4 y frente 5"
+        # (a diferencia del anterior, aquí "frente"/"frentes" se repite antes de cada número)
+        if not frente:
+            frente_rep = re.search(
+                r'\bFrentes?\s+\d+(?:\s*(?:,|y)\s*frentes?\s+\d+)+', bloque, re.IGNORECASE
+            )
+            if frente_rep:
+                nums = re.findall(r'\d+', frente_rep.group(0))
                 lista = "-".join(nums)
                 frente = type('_', (), {'group': lambda self, n: lista})()
         # Fallback frentes por extremos: "F1-F3" / "F4-F7" -> "F1-F3" (participan SOLO los extremos)
@@ -830,8 +863,7 @@ def procesar_agenda(texto):
 
         # ASISTENTES
         asistentes = re.search(
-            rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=\s+{_FRONT_ASIS}|$)",
-            bloque, re.IGNORECASE
+            rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_ASIS}|$)",            bloque, re.IGNORECASE
         )
         # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7", "DEFENSA F3 y F4")
         if not frente and asistentes:
@@ -851,7 +883,7 @@ def procesar_agenda(texto):
 
         # UBICACIÓN
         ubicacion = re.search(
-            r"(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro):\s*[\n\r]*\s*(?:\[.*?\]\((https?://[^\)\s]+)\)|(https?://[^\s\]]+)|(.+))",
+            r"(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro)\s*:?\s*[\n\r]*\s*(?:\[.*?\]\((https?://[^\)\s]+)\)|(https?://[^\s\]]+)|(.+))",
             bloque,
             re.IGNORECASE
         )
@@ -890,7 +922,7 @@ def procesar_agenda(texto):
 
         # BDTs
         bdts = re.search(
-            rf"BDTs?:\s*([^\n]+?)(?=\s+{_FRONT_BDTS}|$)",
+            rf"BDTs?:\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_BDTS}|$)",
             bloque, re.IGNORECASE
         )
 
@@ -1348,7 +1380,8 @@ def _procesar_buffer(chat_id):
 
     if not (re.search(r'(?i)agenda', texto)
             or "Fecha:" in texto
-            or _CLAVES_RE.search(texto[:200])):
+            or _CLAVES_RE.search(texto[:200])
+            or _resolver_abrev_tramo(texto[:200])):
         telegram_enviar(chat_id, "Eso no parece agenda. Reenvíame el mensaje del grupo tal cual.")
         return
 
