@@ -863,7 +863,8 @@ def procesar_agenda(texto):
 
         # ASISTENTES
         asistentes = re.search(
-            rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_ASIS}|$)",            bloque, re.IGNORECASE
+            rf"(?:Asistentes?|Asisten?|Participa(?:n|ntes)?):\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_ASIS}|[\r\n]|$)",
+            bloque, re.IGNORECASE
         )
         # Fallback: frente pegado a la dependencia en Asistentes ("SEDATU F7", "DEFENSA F3 y F4")
         if not frente and asistentes:
@@ -922,7 +923,7 @@ def procesar_agenda(texto):
 
         # BDTs
         bdts = re.search(
-            rf"BDTs?:\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_BDTS}|$)",
+            rf"BDTs?:\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_BDTS}|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
 
