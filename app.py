@@ -1051,6 +1051,18 @@ def procesar_agenda(texto):
                 if len(partes_nuc) >= 2:
                     nucleo_txt = ", ".join(partes_nuc[:-1]) + " y " + partes_nuc[-1]
                     nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
+        if not nucleo:
+            lista_ej2 = re.search(r'\b(?i:ejidos)\s+([A-ZÁÉÍÓÚÑ].+?)(?:\.|\n|$)', linea_principal)
+            if lista_ej2:
+                bruto = lista_ej2.group(1).strip()
+                antes_m = re.search(r',\s*antes\s+(.+)$', bruto, re.IGNORECASE)
+                sufijo = ""
+                if antes_m:
+                    sufijo = f" ({antes_m.group(1).strip(' .')})"
+                    bruto = bruto[:antes_m.start()].strip()
+                if re.search(r',|\by\b', bruto):     # al menos 2 elementos -> sí es lista
+                    nucleo_txt = bruto + sufijo
+                    nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         # Fallback multi-ejido entrecomillado: ejido "A", ejido "B" y ejido "C"
         if not nucleo:
             _ejq = re.findall(
@@ -1067,7 +1079,7 @@ def procesar_agenda(texto):
                 r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
                 r'["\u2018\u2019\u201c\u201d\']?'
                 r'([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)'
-                r'(?:["\u2018\u2019\u201c\u201d\']|\s*\(|\)|,|\.|\n|$)',
+                r'(?:["\u2018\u2019\u201c\u201d\']|\s*\(|\)|,|\.|\n|$|(?=\s+y\s+parcelas?\b))',
                 linea_principal
             )
             if ejido_inline:
