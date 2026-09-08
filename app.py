@@ -97,6 +97,11 @@ _DEP_PATRONES = {canon: [re.compile(_dep_pat(al)) for al in als]
 # Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
 _PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
 _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
+# Alias de nombres abreviados que aparecen en agendas reales (omiten "Potosí")
+_ALIAS_NOMBRE_PROYECTO = {
+    frozenset({'san', 'luis', 'saltillo'}): mapa_proyectos['TSLPS'],   # "SAN LUIS - SALTILLO"
+}
+_PROY_POR_NOMBRE.update(_ALIAS_NOMBRE_PROYECTO)
 # Alias de claves mal escritas / transposiciones comunes -> clave canónica
 _ALIAS_CLAVE = {
     'tqm': 'tmq',   # transposición típica de TMQ
@@ -331,6 +336,63 @@ SYSTEM_RESUMEN = (
     "- IFREM / ifrem: Instituto de la Función Registral del Estado de México\n"
     "- Regla: si encuentras una sigla que NO está en este glosario, consérvala tal cual aparece. NUNCA inventes ni deduzcas el significado de una sigla."
 )
+
+SYSTEM_PUNTO_ENCUENTRO = (
+    "Redactas UNA sola frase en español, tono institucional pero natural, que explique el "
+    "punto de encuentro de una actividad de campo de un proyecto ferroviario de SEDATU, a "
+    "partir de una nota cruda (a veces en mayúsculas, con redacción telegráfica).\n"
+    "Reglas:\n"
+    "- Una sola oración, en tiempo futuro: empieza con 'El punto de encuentro será...'.\n"
+    "- Si la nota trae una hora (HH:MM), inclúyela tal cual con 'a las HH:MM'.\n"
+    "- Si la nota da un motivo (ej. falta de señal), consérvalo como razón con 'debido a que...'.\n"
+    "- Conserva TEXTUAL los nombres propios de lugares (ejidos, núcleos agrarios, salones, comunidades).\n"
+    "- No inventes datos que no estén en la nota. No agregues introducción ni explicación.\n"
+    "- Responde SOLO con la frase, sin comillas.\n"
+    "- NUNCA pidas más datos, NUNCA hagas preguntas, NUNCA pidas aclaraciones."
+)
+
+def formatear_punto_encuentro(texto_ubic):
+    """Reformula el texto crudo de 'Punto de encuentro'/'Punto de reunión' en una frase
+       natural ('El punto de encuentro será... a las HH:MM debido a que...'), vía Haiku.
+       Fallback: texto crudo con solo la primera letra en mayúscula, si no hay API key
+       o la llamada falla."""
+    base = (texto_ubic or "").strip()
+    if not base:
+        return ""
+    fallback = base[0].upper() + base[1:].lower()
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return fallback
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 100,
+                "temperature": 0.5,
+                "system": SYSTEM_PUNTO_ENCUENTRO,
+                "messages": [{"role": "user", "content": f"Nota: {base}"}],
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        frase = resp.json()["content"][0]["text"].strip()
+        malo = (
+            not frase
+            or "\n" in frase
+            or len(frase) > 220
+            or "?" in frase
+            or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con)', frase)
+        )
+        return fallback if malo else frase
+    except Exception:
+        return fallback
 
 def normalizar_capitalizacion(texto):
     if not texto:
@@ -828,9 +890,7 @@ def procesar_agenda(texto):
             if linea_actual.count('(') > linea_actual.count(')'):
                 municipio = municipio[:-1].strip()
 
-        # MUNICIPIO/ESTADO alterno: si vienen escritos en el propio texto, ej.
-        # "(Frente 9 - Municipio San Juan del Río, Querétaro)", como respaldo
-        # por si el link de Maps no logra geolocalizar.
+        # MUNICIPIO/ESTADO alterno
         municipio_inline_match = re.search(
             r'Municipio\s+([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ.\'\s]+?)\s*,\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+)\s*\)',
             bloque
@@ -842,9 +902,7 @@ def procesar_agenda(texto):
             municipio_txt_inline = ""
             estado_txt_inline = ""
 
-        # MUNICIPIO plural: "Frente 11 – Municipios de Pedro Escobedo, El Marqués
-        # y Colón, Querétaro" -> junta TODOS los municipios listados (el geocodificado
-        # del link de Maps solo captura el punto exacto, no la lista completa).
+        # MUNICIPIO plural
         municipios_multi_match = re.search(r'Municipios\s+de\s+([^\n]+)', bloque, re.IGNORECASE)
         municipio_multi_txt = ""
         if municipios_multi_match:
@@ -890,16 +948,21 @@ def procesar_agenda(texto):
         )
         url = ""
         texto_ubic = ""
+        url_directa = False
         if ubicacion:
             url = (ubicacion.group(1) or ubicacion.group(2) or "").strip()
             texto_ubic = (ubicacion.group(3) or "").strip().rstrip('.').strip()
+            url_directa = bool(url)
         if not url:
             url_suelta = re.search(r'(?m)^\s*[-•]?\s*(https?://\S+)\s*$', bloque)
             if url_suelta:
                 url = url_suelta.group(1).strip()
         if not url:                   # dirección + link en la misma línea: saca el link
             m_embed = re.search(r'https?://\S+', texto_ubic)
-            url = m_embed.group(0).strip() if m_embed else texto_ubic 
+            url = m_embed.group(0).strip() if m_embed else texto_ubic
+        nota_punto_encuentro = ""
+        if texto_ubic and url and not url_directa and url.startswith('http'):
+            nota_punto_encuentro = formatear_punto_encuentro(texto_ubic) 
 
         estado_geo = ""
         municipio_geo = ""
@@ -933,6 +996,8 @@ def procesar_agenda(texto):
             bdts_val = ""
 
         partes = []
+        if nota_punto_encuentro:
+            partes.append(nota_punto_encuentro)
         if bdts_val:
             partes.append(bdts_val)
         linea_resumen = re.sub(
