@@ -1065,6 +1065,20 @@ def procesar_agenda(texto):
             if ejido_inline:
                 nucleo_txt = ejido_inline.group(1).strip()
                 nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
+        if not nucleo:
+            _parcela_de_matches = re.findall(
+                r'(?i:\bparcelas?)\s+\d+[A-Za-z]?(?:\s*[,y]\s*\d+[A-Za-z]?)*\s+de\s+'
+                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)',
+                linea_principal
+            )
+            if _parcela_de_matches:
+                _vistos_nuc = set()
+                _lugares_nuc = [p.strip() for p in _parcela_de_matches
+                                 if p.strip() and not (p.strip().lower() in _vistos_nuc
+                                                        or _vistos_nuc.add(p.strip().lower()))]
+                nucleo_txt = (", ".join(_lugares_nuc[:-1]) + " y " + _lugares_nuc[-1]
+                              if len(_lugares_nuc) > 1 else _lugares_nuc[0])
+                nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo and ejido_match:
             nucleo_txt = ejido_match.group(1).strip()
             if nucleo_txt:
