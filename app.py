@@ -12,9 +12,7 @@ import unicodedata
 
 app = Flask(__name__)
 
-# =========================
 # MAPA PROYECTOS
-# =========================
 mapa_proyectos = {
         'TAP':   '1. AIFA - PACHUCA',
         'TIG':   '5. IRAPUATO - GUADALAJARA',
@@ -26,9 +24,9 @@ mapa_proyectos = {
         'TSLPS': '8. SAN LUIS POTOSÍ - SALTILLO',
     }
 
-# =========================
-# SHEET DEL JEFE (solo TSNL, TIG, TQI)
-# =========================
+
+# SHEET JEFE
+
 SPREADSHEET_ID_JEFE = "1umdQV1Qt4FpkXXu_dzZPh_XKV7x1-EYsbUQucd5Zf9w"
 
 PROYECTOS_JEFE = {
@@ -45,19 +43,18 @@ DIRECTOR_TRAMO = {
 
 def _norm(s):
     s = s or ""
-    s = re.sub(r'^\s*\d+\.\s*', '', s)                       # quita "4. " inicial
-    s = ''.join(c for c in unicodedata.normalize('NFD', s)   # quita acentos
+    s = re.sub(r'^\s*\d+\.\s*', '', s)                       
+    s = ''.join(c for c in unicodedata.normalize('NFD', s)   
                 if unicodedata.category(c) != 'Mn')
     s = s.lower()
-    s = re.sub(r'[-–—−]', ' ', s)                            # unifica guiones a espacio
-    s = re.sub(r'\s+', ' ', s).strip()                       # colapsa espacios
+    s = re.sub(r'[-–—−]', ' ', s)                            
+    s = re.sub(r'\s+', ' ', s).strip()                       
     return s
 
 def _sin_acentos(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s or "")
                    if unicodedata.category(c) != 'Mn')
 
-# Canónico (lo que se ve en la leyenda) -> alias a buscar
 DEP_ALIASES = {
     "SEDATU":   ["SEDATU", "EDATU"],
     "RAN":      ["RAN", "REGISTRO AGRARIO NACIONAL"],
@@ -67,7 +64,7 @@ DEP_ALIASES = {
     "PA":       ["PA", "P.A.", "PROCURADURIA AGRARIA"],
     "FIFONAFE": ["FIFONAFE"],
     "INDAABIN": ["INDAABIN", "INDABIN"],
-    # --- cola: se agrupan en OTRAS ---
+    # OTRAS
     "ARTF":     ["ARTF"],
     "SIAL":     ["SIAL"],          
     "LIDERVIC": ["LIDERVIC"],      
@@ -83,7 +80,6 @@ DEP_ALIASES = {
     "SALUD":    ["SALUD"],
 }
 
-# Las 8 con rebanada propia; lo demás cae en OTRAS
 DEP_NUCLEO = {"SEDATU","SEDENA","RAN","SICT","ATTRAPI","PA","FIFONAFE","INDAABIN"}
 
 def _dep_pat(alias):
@@ -94,25 +90,19 @@ def _dep_pat(alias):
 _DEP_PATRONES = {canon: [re.compile(_dep_pat(al)) for al in als]
                  for canon, als in DEP_ALIASES.items()}
 
-# Lookups precalculados: por clave (TMQ) y por nombre (Saltillo–Nuevo Laredo)
 _PROY_POR_CLAVE  = {_norm(k): v for k, v in mapa_proyectos.items()}
 _PROY_POR_NOMBRE = {frozenset(_norm(v).split()): v for v in mapa_proyectos.values()}
-# Alias de nombres abreviados que aparecen en agendas reales (omiten "Potosí")
 _ALIAS_NOMBRE_PROYECTO = {
     frozenset({'san', 'luis', 'saltillo'}): mapa_proyectos['TSLPS'],   # "SAN LUIS - SALTILLO"
 }
 _PROY_POR_NOMBRE.update(_ALIAS_NOMBRE_PROYECTO)
-# Alias de claves mal escritas / transposiciones comunes -> clave canónica
 _ALIAS_CLAVE = {
-    'tqm': 'tmq',   # transposición típica de TMQ
+    'tqm': 'tmq',   
 }
 _CLAVES_RE = re.compile(
     r'\b(' + '|'.join(sorted(mapa_proyectos, key=len, reverse=True)) + r')\b',
     re.IGNORECASE
 )
-
-# Abreviaturas de tramo tipo "MEX-QRO" que a veces reemplazan la clave (TMQ) en el
-# encabezado. Agrega aquí más conforme aparezcan (ej. "IRAP-GDL": "TIG").
 ABREV_TRAMO = {
     "MEX-QRO": "TMQ",
 }
@@ -121,7 +111,6 @@ _ABREV_TRAMO_RE = re.compile(
                        for k in sorted(ABREV_TRAMO, key=len, reverse=True)) + r')\b',
     re.IGNORECASE
 )
-
 def _resolver_abrev_tramo(texto):
     """Busca una abreviatura de tramo (ej. 'MEX-QRO') y devuelve su clave (TMQ), o None."""
     m = _ABREV_TRAMO_RE.search(texto)
@@ -142,7 +131,7 @@ meses = {
     "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
 }
 
-# CAPA MUNICIPAL INEGI
+# CAPA MUNICIPIOS INEGI
 def cargar_capas():
     base = os.path.join(os.path.dirname(__file__), "data")
     with open(os.path.join(base, "municipios_mx.geojson"), encoding="utf-8") as f:
@@ -746,6 +735,10 @@ def procesar_agenda(texto):
             r"(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?|h(?:oras?|rs?))\b",
             bloque, re.IGNORECASE
         )
+        hora_entera_match = re.search(
+            r"Hora:\s*(\d{1,2})\s*(?:hrs?|horas?)\b",
+            bloque, re.IGNORECASE
+        )
         if hora_doble_match:
             h1 = _hora_24(hora_doble_match.group(1), hora_doble_match.group(2), None)
             z1 = hora_doble_match.group(3).strip()
@@ -762,48 +755,43 @@ def procesar_agenda(texto):
             hora_txt = _hora_24(hora_label_match.group(1), hora_label_match.group(2), hora_label_match.group(3))
         elif hora_sola_match:
             hora_txt = _hora_24(hora_sola_match.group(1), hora_sola_match.group(2), hora_sola_match.group(3))
+        elif hora_entera_match:
+            hora_txt = _hora_24(hora_entera_match.group(1), "00", None)
         else:
             hora_txt = ""
 
         # LÍNEA PRINCIPAL
         match_desc = re.search(r"(?im)^\s*(?:Descripci[oó]n|Actividad|Asunto)\b\s*:?\s*(\S[^\n]*)", bloque)
         match_inline = re.search(r"\d{1,2}:\d{2}\s*(?:hrs?)?\s*[-–—]\s*(.*)", bloque, re.IGNORECASE)
+        _sin_actividad_explicita = False
         if match_desc:
             linea_principal = match_desc.group(1).strip()
         elif match_inline:
             linea_principal = match_inline.group(1).strip()
         else:
-            # Formato TQI: "Hora: 10:00hrs" en una línea y la actividad (sin etiqueta) en la de abajo.
-            # Toma la primera línea de contenido: ni etiqueta de campo, ni URL, ni número suelto.
+            _sin_actividad_explicita = True
             linea_principal = ""
             for l in bloque.splitlines():
                 l = l.strip()
                 if not l:
                     continue
-                if re.match(rf'(?i){_FRONT_ALL}', l):   # Hora:, Asistentes:, Ubicación:, etc.
+                if re.match(rf'(?i){_FRONT_ALL}', l):
                     continue
                 if re.match(r'https?://', l):
                     continue
-                if re.fullmatch(r'\d+[\.\-]?', l):       # "1." suelto si el split dejó rastro
+                if re.fullmatch(r'\d+[\.\-]?', l):       
                     continue
                 if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?|h|[ap]\.?\s*m\.?)?\.?', l, re.IGNORECASE):
                     continue                             # hora suelta sin etiqueta: "10:30hrs"
                 linea_principal = l
                 break
-            if not linea_principal:                      # respaldo: comportamiento anterior
+            if not linea_principal:                      
                 linea_principal = bloque.splitlines()[0].strip()
-
-        # linea principal
-        # (recorta solo si la siguiente etiqueta de campo cae FUERA de un
-        #  paréntesis sin cerrar; evita truncar en casos como
-        #  "...(Frente 12 - Municipio: Querétaro)" donde "Municipio:" es
-        #  parte de la nota entre paréntesis, no un campo nuevo real)
         _idx_frontera = _frontera_fuera_parentesis(linea_principal, rf'\s+(?={_FRONT_ALL})')
         if _idx_frontera is not None:
             linea_principal = linea_principal[:_idx_frontera].strip()
 
         linea_principal = re.sub(r'^\d{1,2}:\d{2}\s*(?:hrs?)?\.?\s*[-–—]\s*', '', linea_principal, flags=re.IGNORECASE).strip()
-        # Preámbulo de mensajes "adicionales": saludo + "adicional a la agenda..." + "del Frente N,"
         linea_principal = re.sub(r'(?i)^\s*buen[oa]s?\s+(?:noches|tardes|d[ií]as)[\s,\.]*', '', linea_principal).strip()
         linea_principal = re.sub(r'(?i)^\s*adicional\s+a\s+la\s+agenda[^,]*,\s*', '', linea_principal).strip()
         linea_principal = re.sub(r'(?i)^\s*del\s+Frente\s+\d+[\s,]*', '', linea_principal).strip()
@@ -828,9 +816,6 @@ def procesar_agenda(texto):
             rf"(?<!\w)(?:Frente|F):\s*([^\n]+?)(?=(?:\s|[-•])+{_FRONT_FRENTE}|[\r\n]|$)",
             bloque, re.IGNORECASE
         )
-        # Fallback inline plural: "Frentes 8, 9, 10, 11 y 12" / "Frentes 3 y 4"
-        # (se busca en todo el bloque, no solo en la línea principal: en la agenda
-        #  suele venir en su propia línea, ej. "...Zapata\nFrentes 4 y 5\nAsistentes:...")
         if not frente:
             frentes_multi = re.search(
                 r'\bFrentes?\s+(\d+(?:\s*[,y]\s*\d+)*)', bloque, re.IGNORECASE
@@ -839,8 +824,6 @@ def procesar_agenda(texto):
                 nums = re.findall(r'\d+', frentes_multi.group(1))
                 lista = "-".join(nums)
                 frente = type('_', (), {'group': lambda self, n: lista})()
-        # Fallback inline plural con la palabra repetida: "Frente 4 y frente 5"
-        # (a diferencia del anterior, aquí "frente"/"frentes" se repite antes de cada número)
         if not frente:
             frente_rep = re.search(
                 r'\bFrentes?\s+\d+(?:\s*(?:,|y)\s*frentes?\s+\d+)+', bloque, re.IGNORECASE
@@ -849,8 +832,6 @@ def procesar_agenda(texto):
                 nums = re.findall(r'\d+', frente_rep.group(0))
                 lista = "-".join(nums)
                 frente = type('_', (), {'group': lambda self, n: lista})()
-        # Fallback frentes por extremos: "F1-F3" / "F4-F7" -> "F1-F3" (participan SOLO los extremos)
-        # (también en todo el bloque: suele venir como "Proyecto TMQ (F1-F3)" en su propia línea)
         if not frente:
             frente_rango = re.search(
                 r'\bF\.?\s*(\d+)\s*[-–—]\s*F?\.?\s*(\d+)\b', bloque, re.IGNORECASE
@@ -858,19 +839,16 @@ def procesar_agenda(texto):
             if frente_rango:
                 _lista = f"{frente_rango.group(1)}-{frente_rango.group(2)}"
                 frente = type('_', (), {'group': lambda self, n: _lista})()        
-        # Fallback inline singular: "F2", "Frente 3"
         if not frente:
             frente_inline = re.search(r'\bF(?:rente)?\.?\s*(\d+)\b', linea_principal, re.IGNORECASE)
             if frente_inline:
                 num = frente_inline.group(1)
                 frente = type('_', (), {'group': lambda self, n: num})()
-        # Fallback bloque crudo: "del Frente 4" que ya se limpió de la línea principal
         if not frente:
             frente_bloque = re.search(r'\bFrente\s+(\d+)\b', bloque, re.IGNORECASE)
             if frente_bloque:
                 num = frente_bloque.group(1)
                 frente = type('_', (), {'group': lambda self, n: num})()
-        # Fallback encabezado
         if not frente:
             frente_enc = re.search(r'\bFrente\s+(\d+)\b', encabezado, re.IGNORECASE)
             if frente_enc:
@@ -1000,13 +978,21 @@ def procesar_agenda(texto):
             partes.append(nota_punto_encuentro)
         if bdts_val:
             partes.append(bdts_val)
+        _TENENCIA_TAG_RE = re.compile(r'\(\s*(?i:uso\s+com[uú]n|propiedad\s+privada)\s*\)')
+        if _sin_actividad_explicita and _TENENCIA_TAG_RE.search(linea_principal):
+            _base_reunion = re.sub(r'(\S)\(', r'\1 (', linea_principal)   # espacio antes de "("
+            _base_para_resumen = f"Reunión con el núcleo agrario {_base_reunion}"
+        else:
+            _base_para_resumen = linea_principal
+
         linea_resumen = re.sub(
             r'\(\s*titular(?:es)?:?\s+([^)]+?)\s*\)',
             r'(propietario: \1)',
-            linea_principal, flags=re.IGNORECASE
+            _base_para_resumen, flags=re.IGNORECASE
         )
         linea_resumen = re.sub(
-            r'\((?!\s*(?:Frente|F|propietario)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+            r'\((?!\s*(?:Frente|F|propietario)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)'
+            r'(?!\s*\(\s*(?i:uso\s+com[uú]n|propiedad\s+privada)\s*\))',
             r'(propietario: \1)',
             linea_resumen
         )
@@ -1015,7 +1001,6 @@ def procesar_agenda(texto):
         noms_inl = extraer_nomenclaturas_inline(linea_principal)
         noms = noms_lbl + [c for c in noms_inl if c not in noms_lbl]
         if ubic_por_codigo:
-            # cada fila integrará SU propio código más abajo; aquí solo base + parcelas
             resumen_final = integrar_parcelas(resumen_base, extraer_parcelas_sueltas(bloque))
         else:
             resumen_final = integrar_nomenclaturas(resumen_base, noms)
@@ -1032,16 +1017,12 @@ def procesar_agenda(texto):
             actividades_desarrolladas = (
                 f"{actividades_desarrolladas} | {extra}" if actividades_desarrolladas else extra
             )
-
-        # MINUTAS: cada "Minuta ... (hh:mm hrs)" es una fila propia (hora propia si la trae,
-        # hereda asistentes/ubicación/frente/proyecto del bloque). Se emite más abajo.
         minutas = re.findall(r'(?im)^\s*(Minuta\b[^\n]*?)\s*$', bloque)
         ejido_match = re.search(r"(?m)^\s*Ejido:?\s*(.*)", bloque, re.IGNORECASE)
         ejido = ejido_match.group(1).strip() if ejido_match else ""
 
         # NÚCLEO AGRARIO
         nucleo = re.search(r"Núcleo Agrario:\s*(.*)", bloque, re.IGNORECASE)
-        # Fallback 0: lista de ejidos en plural -> "X, Y y Z"
         if not nucleo:
             lista_ej = re.search(r'\bejidos\s+de\s+(.+?)(?:\.|\n|$)', linea_principal, re.IGNORECASE)
             if lista_ej:
@@ -1060,10 +1041,9 @@ def procesar_agenda(texto):
                 if antes_m:
                     sufijo = f" ({antes_m.group(1).strip(' .')})"
                     bruto = bruto[:antes_m.start()].strip()
-                if re.search(r',|\by\b', bruto):     # al menos 2 elementos -> sí es lista
+                if re.search(r',|\by\b', bruto):     
                     nucleo_txt = bruto + sufijo
                     nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
-        # Fallback multi-ejido entrecomillado: ejido "A", ejido "B" y ejido "C"
         if not nucleo:
             _ejq = re.findall(
                 r'(?i:\bEjidos?\s+(?:de\s+)?)[\u201c\u2018"\']([^\u201c\u201d\u2018\u2019"\']+)[\u201d\u2019"\']',
@@ -1134,7 +1114,8 @@ def procesar_agenda(texto):
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             paren_inline = re.search(
-                r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)',
+                r'\((?!\s*(?:Frente|F)\b)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\)'
+                r'(?!\s*\(\s*(?i:uso\s+com[uú]n|propiedad\s+privada)\s*\))',
                 linea_principal
             )
             if paren_inline:
@@ -1164,6 +1145,12 @@ def procesar_agenda(texto):
                 trato = "Sra." if re.match(r'(?i)(?:se[ñn]ora|propietaria)', persona_simple.group(1)) else "Sr."
                 prop_txt = f"{trato} {persona_simple.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        _tipo_prop_match = re.search(r'(?i:uso\s+com[uú]n|propiedad\s+privada)', bloque)
+        tipo_propiedad_txt = ""
+        if _tipo_prop_match:
+            tipo_propiedad_txt = (
+                "Uso común" if "com" in _tipo_prop_match.group(0).lower() else "Propiedad privada"
+            )
 
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
@@ -1173,7 +1160,7 @@ def procesar_agenda(texto):
                 "TIPO DE SOLICITUD": actividad_txt,
                 "PROYECTO FERROVIARIO": proyecto_final,
                 "UBICACIÓN": ubic_url,
-                "TIPO DE PROPIEDAD": "",
+                "TIPO DE PROPIEDAD": tipo_propiedad_txt,
                 "FRENTE": (
                     re.sub(r'\b(\d+)\b', r'F\1', frente.group(1).strip())
                     if frente and frente.group(1).strip().upper() != "N/A" else ""
@@ -1198,7 +1185,6 @@ def procesar_agenda(texto):
             }
 
         if ubic_por_codigo:
-            # Una fila por nomenclatura: cada una con SU código, hora y ubicación.
             hora_por_cod = {mm.group(1): f"{int(mm.group(2)):02d}:{mm.group(3)}"
                             for mm in _NOM_HORA_RE.finditer(bloque)}
             for cod, url_punto in ubic_por_codigo:
@@ -1234,7 +1220,7 @@ def procesar_agenda(texto):
         else:
             filas.append(armar_fila(url, estado_geo, municipio_geo, actividades_desarrolladas))
 
-        # Filas de MINUTA (heredan ubicación/asistentes/frente del bloque, hora propia)
+         # Filas de MINUTA (heredan ubicación/asistentes/frente del bloque, hora propia)
         for minuta_txt in minutas:
             minuta_txt = re.sub(r'\.\s*$', '', minuta_txt.strip())
             mh = re.search(r'\((\d{1,2}):(\d{2})\s*(?:hrs?)?\)', minuta_txt)
@@ -1279,7 +1265,7 @@ def subir_a_sheets(filas):
 
     worksheet.append_rows(datos, value_input_option="USER_ENTERED")
 
-    # --- Replicar actividades de TSNL/TIG/TQI al sheet del jefe ---
+     # --- Replicar actividades de TSNL/TIG/TQI al sheet del jefe ---
     filas_jefe = [f for f in filas if f.get("PROYECTO FERROVIARIO", "") in PROYECTOS_JEFE]
     if filas_jefe:
         try:
@@ -1371,9 +1357,9 @@ def share():
     except Exception as e:
         return f"<h2>❌ Error: {e}</h2>", 500
 
-# =========================
-# BOT DE TELEGRAM (Tara)
-# =========================
+
+# TARA (TELEGRAM AGENDA READER APP) — Webhook para recibir mensajes de Telegram y subirlos a Sheets
+
 TELEGRAM_CHATS_OK = set(
     c.strip() for c in os.environ.get("TELEGRAM_CHATS_OK", "").split(",") if c.strip()
 )
@@ -1500,9 +1486,7 @@ def _procesar_buffer(chat_id):
     except Exception as e:
         telegram_enviar(chat_id, f"❌ Error: {e}")
 
-#=========================
 # API AGENDA
-#=========================
 
 @app.route("/api/agenda")
 def api_agenda():
@@ -1624,9 +1608,7 @@ def api_agenda():
     except Exception as e:
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
-#=========================
 # API CONTEO
-#=========================
 
 @app.route("/api/conteo")
 def api_conteo():
@@ -1710,9 +1692,7 @@ def api_conteo():
     except Exception as e:
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
-#=========================
 # API TIPO DE PROPIEDAD
-#=========================
 
 @app.route("/api/tipo_propiedad")
 def api_tipo_propiedad():
@@ -1759,25 +1739,19 @@ def api_tipo_propiedad():
     except Exception as e:
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
-#=========================
 # RUTA A DASHBOARD
-#=========================
 
 @app.route("/dashboard")
 def dashboard():
     return render_template("dashboard.html")
 
-#=========================
 # RUTA A CONTEO
-#=========================
 
 @app.route("/conteo")
 def conteo_dashboard():
     return render_template("conteo.html")
 
-#=========================
 # RUTA A TIPO DE PROPIEDAD
-#=========================
 
 @app.route("/propiedad")
 def propiedad_dashboard():
