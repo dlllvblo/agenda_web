@@ -1145,12 +1145,6 @@ def procesar_agenda(texto):
                 trato = "Sra." if re.match(r'(?i)(?:se[ñn]ora|propietaria)', persona_simple.group(1)) else "Sr."
                 prop_txt = f"{trato} {persona_simple.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
-        _tipo_prop_match = re.search(r'(?i:uso\s+com[uú]n|propiedad\s+privada)', bloque)
-        tipo_propiedad_txt = ""
-        if _tipo_prop_match:
-            tipo_propiedad_txt = (
-                "Uso común" if "com" in _tipo_prop_match.group(0).lower() else "Propiedad privada"
-            )
 
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
@@ -1160,7 +1154,7 @@ def procesar_agenda(texto):
                 "TIPO DE SOLICITUD": actividad_txt,
                 "PROYECTO FERROVIARIO": proyecto_final,
                 "UBICACIÓN": ubic_url,
-                "TIPO DE PROPIEDAD": tipo_propiedad_txt,
+                "TIPO DE PROPIEDAD": "",
                 "FRENTE": (
                     re.sub(r'\b(\d+)\b', r'F\1', frente.group(1).strip())
                     if frente and frente.group(1).strip().upper() != "N/A" else ""
