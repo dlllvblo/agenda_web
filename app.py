@@ -781,8 +781,8 @@ def procesar_agenda(texto):
                     continue
                 if re.fullmatch(r'\d+[\.\-]?', l):       
                     continue
-                if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?|h|[ap]\.?\s*m\.?)?\.?', l, re.IGNORECASE):
-                    continue                             # hora suelta sin etiqueta: "10:30hrs"
+                if re.fullmatch(r'\d{1,2}:\d{2}\s*(?:hrs?|horas?|h|[ap]\.?\s*m\.?)?\.?', l, re.IGNORECASE):
+                    continue                             
                 linea_principal = l
                 break
             if not linea_principal:                      
