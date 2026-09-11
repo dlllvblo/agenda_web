@@ -940,7 +940,15 @@ def procesar_agenda(texto):
             url = m_embed.group(0).strip() if m_embed else texto_ubic
         nota_punto_encuentro = ""
         if texto_ubic and url and not url_directa and url.startswith('http'):
-            nota_punto_encuentro = formatear_punto_encuentro(texto_ubic) 
+            nota_punto_encuentro = formatear_punto_encuentro(texto_ubic)
+        direccion_extra = ""
+        _direccion_match = re.search(
+            r"(?im)^\s*Ubicaci[oó]n(?:es)?\s*:\s*(?!https?://)(\S[^\n]*)", bloque
+        )
+        if _direccion_match:
+            _cand = _direccion_match.group(1).strip().rstrip('.').strip()
+            if _cand and _cand.upper() != "N/A" and _cand.lower() != texto_ubic.lower():
+                direccion_extra = _cand
 
         estado_geo = ""
         municipio_geo = ""
@@ -976,11 +984,13 @@ def procesar_agenda(texto):
         partes = []
         if nota_punto_encuentro:
             partes.append(nota_punto_encuentro)
+        if direccion_extra:
+            partes.append(f"Dirección: {direccion_extra}")
         if bdts_val:
             partes.append(bdts_val)
         _TENENCIA_TAG_RE = re.compile(r'\(\s*(?i:uso\s+com[uú]n|propiedad\s+privada)\s*\)')
         if _sin_actividad_explicita and _TENENCIA_TAG_RE.search(linea_principal):
-            _base_reunion = re.sub(r'(\S)\(', r'\1 (', linea_principal)   # espacio antes de "("
+            _base_reunion = re.sub(r'(\S)\(', r'\1 (', linea_principal)
             _base_para_resumen = f"Reunión con el núcleo agrario {_base_reunion}"
         else:
             _base_para_resumen = linea_principal
