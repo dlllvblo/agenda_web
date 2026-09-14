@@ -415,10 +415,24 @@ def capitalizar_nombre_propio(texto):
             resultado.append(base[:1].upper() + base[1:] if base else base)
     return ' '.join(resultado)
 
-# ============================================================
-# CAMPOS DE AGENDA — fuente única de etiquetas (fragmento regex, SIN ':')
-# Si agregas un campo nuevo, se agrega AQUÍ y todos los regex lo respetan.
-# ============================================================
+_EJIDO_PALABRA = r'[A-ZÁÉÍÓÚÑ]{2,}'
+_EJIDO_CONECTOR = r'(?i:de|del|la|las|los)'
+_NOMBRE_EJIDO_SUB_RE = re.compile(
+    r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
+    r'(["\u2018\u2019\u201c\u201d\']?)'
+    rf'({_EJIDO_PALABRA}(?:\s+(?:{_EJIDO_CONECTOR}\s+){{0,2}}{_EJIDO_PALABRA})*)'
+)
+
+def normalizar_nombres_ejido(texto):
+    if not texto:
+        return texto
+
+    def _reemplazo(m):
+        nombre_cap = capitalizar_nombre_propio(m.group(2))
+        return m.group(0)[:m.start(2) - m.start(0)] + nombre_cap
+
+    return _NOMBRE_EJIDO_SUB_RE.sub(_reemplazo, texto)
+
 CAMPOS = {
     "hora":         r'Hora',
     "horario":      r'Horario',
@@ -818,6 +832,7 @@ def procesar_agenda(texto):
             linea_principal = linea_principal[0].upper() + linea_principal[1:]
         linea_principal = re.sub(r'\.$', '', linea_principal).strip()
         linea_principal = normalizar_capitalizacion(linea_principal)
+        linea_principal = normalizar_nombres_ejido(linea_principal)
 
         actividad_txt = linea_principal
 
