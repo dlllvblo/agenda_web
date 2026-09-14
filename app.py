@@ -397,6 +397,24 @@ def normalizar_capitalizacion(texto):
     )
     return texto
 
+_PALABRAS_MINUSCULAS_NOMBRE = {"de", "del", "la", "las", "los", "y", "en"}
+
+def capitalizar_nombre_propio(texto):
+    if not texto:
+        return texto
+    letras = [c for c in texto if c.isalpha()]
+    if not letras or not all(c.isupper() for c in letras):
+        return texto
+    palabras = texto.split(' ')
+    resultado = []
+    for i, palabra in enumerate(palabras):
+        base = palabra.lower()
+        if i > 0 and base in _PALABRAS_MINUSCULAS_NOMBRE:
+            resultado.append(base)
+        else:
+            resultado.append(base[:1].upper() + base[1:] if base else base)
+    return ' '.join(resultado)
+
 # ============================================================
 # CAMPOS DE AGENDA — fuente única de etiquetas (fragmento regex, SIN ':')
 # Si agregas un campo nuevo, se agrega AQUÍ y todos los regex lo respetan.
@@ -1189,8 +1207,8 @@ def procesar_agenda(texto):
                 ),
                 "ESTADO": (est_geo.upper() if est_geo else estado_txt_inline),
                 "MUNICIPIO": municipio if municipio else (municipio_multi_txt if municipio_multi_txt else (mun_g if mun_g else municipio_txt_inline)),
-                "EJIDO": ejido,
-                "NÚCLEO AGRARIO": (nucleo.group(1).strip() if nucleo else ""),
+                "EJIDO": capitalizar_nombre_propio(ejido),
+                "NÚCLEO AGRARIO": capitalizar_nombre_propio(nucleo.group(1).strip() if nucleo else ""),
                 "PROPIETARIOS PROPIEDAD PRIVADA": (
                     (particular.group(1) or particular.group(2) or "").strip()
                     if particular else ""
