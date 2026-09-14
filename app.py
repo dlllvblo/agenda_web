@@ -502,7 +502,6 @@ def extraer_nomenclaturas(bloque):
     vistos = set()
     return [c for c in codigos if not (c in vistos or vistos.add(c))]
 
-# code -> hora, para "MQ-NOP-160 (09:30 hrs)" en bloques BDT con horas por nomenclatura
 _NOM_HORA_RE = re.compile(
     r'\b([A-Z]{2,4}-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?)\b[^\n(]*\((\d{1,2}):(\d{2})\s*(?:hrs?)?\)'
 )
@@ -531,13 +530,10 @@ def extraer_parcelas_sueltas(bloque):
         if m.group(2):
             cod += f" ({m.group(2)})"
         out.append(cod)
-    # dedup conservando orden
     vistos = set()
     return [c for c in out if not (c in vistos or vistos.add(c))]
 
 def _integrar_codigos(resumen, codigos, singular, plural):
-    """Pega códigos determinísticamente al resumen de Haiku.
-       singular/plural = ('la nomenclatura','las nomenclaturas') | ('la parcela','las parcelas')."""
     if not codigos:
         return resumen
     faltantes = [c for c in codigos if c not in resumen]
@@ -608,9 +604,6 @@ _CAT3_SUB_PAT  = [(n, _compilar_cat(p)) for n, p in CAT3_SUB]
 _CAT3_GEN_PAT  = _compilar_cat(CAT3_GENERAL[1])
 
 def clasificar_actividad(tipo_solicitud, detalle=""):
-    """Devuelve lista de (categoria, subcategoria) detectadas.
-       Todas las categorías y el disparo de la 3: SOLO con TIPO DE SOLICITUD.
-       Subtipo de la 3 (construcción/agroforestal): también busca en el detalle."""
     txt = _sin_acentos(str(tipo_solicitud or "")).lower()
     hits = []
 
@@ -621,7 +614,7 @@ def clasificar_actividad(tipo_solicitud, detalle=""):
     es_cat3 = (any(p.search(txt) for p in _CAT3_GEN_PAT)
                or any(p.search(txt) for _, pats in _CAT3_SUB_PAT for p in pats))
 
-    # "Firma de BDT's" es firma de documento, no levantamiento en campo
+
     if es_cat3 and re.search(r'(?<!\w)firmas?(?!\w)', txt) \
        and not re.search(r'(?<!\w)(?:medici(?:on|ones)|levantamientos?|topografic)', txt):
         es_cat3 = False
@@ -638,7 +631,6 @@ def clasificar_actividad(tipo_solicitud, detalle=""):
     return hits
 
 def _hora_24(hh, mm, mer):
-    """Convierte hora a formato 24h. mer = 'A'/'P'/None."""
     h = int(hh)
     if mer:
         mer = mer.lower()
@@ -649,9 +641,6 @@ def _hora_24(hh, mm, mer):
     return f"{h:02d}:{mm}"
 
 def _separar_adicionales(bloques):
-    """Un párrafo tras línea en blanco se separa como bloque propio si parece
-       actividad (trae Hora / punto de reunión / ubicación). Recupera los mensajes
-       'adicionales' sin número que Telegram pega al final del último bloque."""
     salida = []
     for b in bloques:
         trozos = re.split(r'\n[ \t]*\n', b)
@@ -673,7 +662,7 @@ def procesar_agenda(texto):
     texto = re.sub(r'(?m)^\s*_+|_+\s*$', '', texto)
 
     # --- PROYECTO ---
-    proyecto_match = re.search(r"(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
+    proyecto_match = re.search(r"\b(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
                                texto, re.IGNORECASE)
     proyecto_raw = proyecto_match.group(1).strip() if proyecto_match else ""
     if not proyecto_raw:
@@ -953,7 +942,7 @@ def procesar_agenda(texto):
 
         # UBICACIÓN
         ubicacion = re.search(
-            r"(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro)\s*:?\s*[\n\r]*\s*(?:\[.*?\]\((https?://[^\)\s]+)\)|(https?://[^\s\]]+)|(.+))",
+            r"\b(?:Ubicaci[oó]n|Punto de reuni[oó]n|Punto de encuentro)\s*:?\s*[\n\r]*\s*(?:\[.*?\]\((https?://[^\)\s]+)\)|(https?://[^\s\]]+)|(.+))",
             bloque,
             re.IGNORECASE
         )
