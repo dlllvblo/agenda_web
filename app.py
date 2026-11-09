@@ -6,6 +6,8 @@ from google.oauth2.service_account import Credentials
 import os
 import json
 import requests
+
+HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
 import unicodedata
@@ -239,6 +241,8 @@ def resumir_actividad(linea, detalle=""):
         base = f"{base}. {extra}" if base else extra
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("[haiku resumen] Falta ANTHROPIC_API_KEY; se usa el texto base.", flush=True)
     if not api_key or not base:
         return base
     try:
@@ -250,7 +254,7 @@ def resumir_actividad(linea, detalle=""):
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-haiku-4-5-20251001",
+                "model": HAIKU_MODEL,
                 "max_tokens": 120,
                 "temperature": 0.7,
                 "system": SYSTEM_RESUMEN,
@@ -270,7 +274,11 @@ def resumir_actividad(linea, detalle=""):
             or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con|datos espec[ií]ficos)', resumen)
         )
         return base if malo else corregir_siglas(resumen)
-    except Exception:
+    except requests.HTTPError as e:
+        print(f"[haiku resumen] HTTP {e.response.status_code}: {e.response.text[:300]}", flush=True)
+        return base
+    except Exception as e:
+        print(f"[haiku resumen] {type(e).__name__}: {e}", flush=True)
         return base
 
 CORRECCIONES = {
@@ -362,7 +370,7 @@ def formatear_punto_encuentro(texto_ubic):
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-haiku-4-5-20251001",
+                "model": HAIKU_MODEL,
                 "max_tokens": 100,
                 "temperature": 0.5,
                 "system": SYSTEM_PUNTO_ENCUENTRO,
@@ -380,7 +388,11 @@ def formatear_punto_encuentro(texto_ubic):
             or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con)', frase)
         )
         return fallback if malo else frase
-    except Exception:
+    except requests.HTTPError as e:
+        print(f"[haiku punto] HTTP {e.response.status_code}: {e.response.text[:300]}", flush=True)
+        return fallback
+    except Exception as e:
+        print(f"[haiku punto] {type(e).__name__}: {e}", flush=True)
         return fallback
 
 def normalizar_capitalizacion(texto):
@@ -722,7 +734,10 @@ def procesar_agenda(texto):
             and not re.search(r"\b\d{1,2}\s+de\s+(?:%s)\b" % "|".join(meses), l, re.IGNORECASE)
         ).strip()
         if cuerpo:
-            bloques = [cuerpo]
+            trozos = [t.strip() for t in re.split(r'(?im)^(?=[ \t]*Hora\s*:)', cuerpo) if t.strip()]
+            if len(trozos) > 1 and not re.match(r'(?i)Hora\s*:', trozos[0]):
+                trozos = [trozos[0] + "\n" + trozos[1]] + trozos[2:]
+            bloques = trozos if len(trozos) > 1 else [cuerpo]
     filas = []
 
     for bloque in bloques:
@@ -796,6 +811,12 @@ def procesar_agenda(texto):
                 l = l.strip()
                 if not l:
                     continue
+                m_hora_txt = re.match(
+                    r'(?i)Hora\s*:\s*\d{1,2}(?::\d{2})?\s*(?:hrs?\b\.?|horas?\b|[ap]\.?\s*m\b\.?)?(?:\s*[-–—,.]\s*|\s+)'
+                    r'(?!hrs?\b|horas?\b|[ap]\.?\s*m\b|y\s+\d|\(|/)([A-Za-zÁÉÍÓÚÑáéíóúñ].*)', l)
+                if m_hora_txt:
+                    linea_principal = m_hora_txt.group(1).strip()
+                    break
                 if re.match(rf'(?i){_FRONT_ALL}', l):
                     continue
                 if re.match(r'https?://', l):
