@@ -26,6 +26,7 @@ mapa_proyectos = {
         'TQSLP': '7. QUERÉTARO - SAN LUIS POTOSÍ',
         'TSNL':  '4. SALTILLO - NUEVO LAREDO',
         'TSLPS': '8. SAN LUIS POTOSÍ - SALTILLO',
+        'TIX':   '9. TROLEBÚS IXTAPALUCA',
     }
 
 
@@ -672,8 +673,12 @@ def _separar_adicionales(bloques):
             extra = extra.strip()
             if not extra:
                 continue
-            if re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}|Punto de reuni[oó]n|Punto de encuentro',
-                         extra):
+            # Solo es actividad nueva si repite hora o punto de reunión del bloque actual.
+            es_hora = re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}', extra)
+            es_punto = re.search(r'(?i)Punto de reuni[oó]n|Punto de encuentro', extra)
+            ya_hora = re.search(r'(?i)\bHora\b|\d{1,2}:\d{2}', salida[-1])
+            ya_punto = re.search(r'(?i)Punto de reuni[oó]n|Punto de encuentro|Ubicaci[oó]n', salida[-1])
+            if (es_hora and ya_hora) or (es_punto and not es_hora and ya_punto):
                 salida.append(extra)
             else:                       
                 salida[-1] += "\n" + extra
@@ -686,8 +691,10 @@ def procesar_agenda(texto):
     texto = re.sub(r'(?m)^\s*_+|_+\s*$', '', texto)
 
     # --- PROYECTO ---
-    proyecto_match = re.search(r"\b(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
-                               texto, re.IGNORECASE)
+    # "Proyecto:" al inicio de línea tiene prioridad sobre "Agenda ..." (encabezado con fecha).
+    proyecto_match = (re.search(r"(?im)^\W*Proyecto(?:\s+Ferroviario)?\s*:?\s*(.*)", texto)
+                      or re.search(r"\b(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
+                                   texto, re.IGNORECASE))
     proyecto_raw = proyecto_match.group(1).strip() if proyecto_match else ""
     # "T1" = Segmento 1, se agrega al texto de cada actividad.
     m_seg = re.search(r'(?i)\bT(\d+)\b', proyecto_raw)
