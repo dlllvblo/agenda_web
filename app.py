@@ -8,6 +8,7 @@ import json
 import requests
 
 HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
+
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
 import unicodedata
@@ -43,6 +44,7 @@ DIRECTOR_TRAMO = {
     mapa_proyectos["TQI"]:  "ING. MARTÍN FLORES BAILÓN",
 }
 
+# Normaliza texto para comparar: sin número inicial, acentos, guiones ni mayúsculas.
 def _norm(s):
     s = s or ""
     s = re.sub(r'^\s*\d+\.\s*', '', s)                       
@@ -53,6 +55,7 @@ def _norm(s):
     s = re.sub(r'\s+', ' ', s).strip()                       
     return s
 
+# Quita acentos y diacríticos.
 def _sin_acentos(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s or "")
                    if unicodedata.category(c) != 'Mn')
@@ -84,6 +87,7 @@ DEP_ALIASES = {
 
 DEP_NUCLEO = {"SEDATU","SEDENA","RAN","SICT","ATTRAPI","PA","FIFONAFE","INDAABIN"}
 
+# Arma la regex que reconoce una dependencia (sin acentos, puntos opcionales).
 def _dep_pat(alias):
     a = _sin_acentos(alias.upper())
     cuerpo = r'\s+'.join(re.escape(w) for w in a.split()).replace(r'\.', r'\.?')
@@ -134,6 +138,7 @@ meses = {
 }
 
 # CAPA MUNICIPIOS INEGI
+# Carga los municipios INEGI (geojson) en un índice espacial.
 def cargar_capas():
     base = os.path.join(os.path.dirname(__file__), "data")
     with open(os.path.join(base, "municipios_mx.geojson"), encoding="utf-8") as f:
@@ -167,6 +172,7 @@ def _extraer_coordenadas_raw(url_maps):
                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     }
 
+    # Busca lat/lng en los distintos formatos de URL de Google Maps.
     def buscar_coords(url):
         # Decodificar URL-encoding (doble, por el parámetro continue= de Google)
         url = unquote(unquote(url))
@@ -301,6 +307,7 @@ CORRECCIONES_SIGLAS = {
     r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
 }
 
+# Corrige siglas que Haiku suele expandir mal
 def corregir_siglas(texto):
     for patron, correcto in CORRECCIONES_SIGLAS.items():
         texto = re.sub(patron, correcto, texto, flags=re.IGNORECASE)
@@ -395,6 +402,7 @@ def formatear_punto_encuentro(texto_ubic):
         print(f"[haiku punto] {type(e).__name__}: {e}", flush=True)
         return fallback
 
+# Capitaliza frases institucionales y nombres tras Municipio/Ejido.
 def normalizar_capitalizacion(texto):
     if not texto:
         return texto
@@ -411,6 +419,7 @@ def normalizar_capitalizacion(texto):
 
 _PALABRAS_MINUSCULAS_NOMBRE = {"de", "del", "la", "las", "los", "y", "en"}
 
+# Pasa un nombre en MAYÚSCULAS a Tipo Título (de, del, la... en minúscula).
 def capitalizar_nombre_propio(texto):
     if not texto:
         return texto
@@ -435,10 +444,12 @@ _NOMBRE_EJIDO_SUB_RE = re.compile(
     rf'({_EJIDO_PALABRA}(?:\s+(?:{_EJIDO_CONECTOR}\s+){{0,2}}{_EJIDO_PALABRA})*)'
 )
 
+# Capitaliza el nombre que sigue a 'ejido' dentro de un texto.
 def normalizar_nombres_ejido(texto):
     if not texto:
         return texto
 
+    # Reemplaza solo el nombre capitalizado, conservando el prefijo.
     def _reemplazo(m):
         nombre_cap = capitalizar_nombre_propio(m.group(2))
         return m.group(0)[:m.start(2) - m.start(0)] + nombre_cap
@@ -545,6 +556,7 @@ def extraer_parcelas_sueltas(bloque):
     vistos = set()
     return [c for c in out if not (c in vistos or vistos.add(c))]
 
+# Agrega al resumen los códigos que Haiku haya omitido.
 def _integrar_codigos(resumen, codigos, singular, plural):
     if not codigos:
         return resumen
@@ -559,9 +571,11 @@ def _integrar_codigos(resumen, codigos, singular, plural):
     sufijo = singular if len(faltantes) == 1 else plural
     return f"{resumen} en {sufijo} {lista}."
 
+# Asegura que las nomenclaturas aparezcan en el resumen.
 def integrar_nomenclaturas(resumen, noms):
     return _integrar_codigos(resumen, noms, "la nomenclatura", "las nomenclaturas")
 
+# Asegura que las parcelas aparezcan en el resumen.
 def integrar_parcelas(resumen, parcelas):
     return _integrar_codigos(resumen, parcelas, "la parcela", "las parcelas")
 
@@ -608,6 +622,7 @@ CAT3_SUB = [
 CAT3_GENERAL = ("Topográficos/Mediciones",
                 [r'medici(?:on|ones)', r'levantamientos?', r'topografic[oa]s?', r'bdts?'])
 
+# Compila los patrones de una categoría como palabras completas.
 def _compilar_cat(pats):
     return [re.compile(r'(?<!\w)' + p + r'(?!\w)') for p in pats]
 
@@ -615,6 +630,7 @@ _CAT_PATRONES  = [(n, _compilar_cat(p)) for n, p in CATEGORIAS_CONTEO]
 _CAT3_SUB_PAT  = [(n, _compilar_cat(p)) for n, p in CAT3_SUB]
 _CAT3_GEN_PAT  = _compilar_cat(CAT3_GENERAL[1])
 
+# Clasifica la actividad en categorías de conteo (y subcategorías de la cat. 3).
 def clasificar_actividad(tipo_solicitud, detalle=""):
     txt = _sin_acentos(str(tipo_solicitud or "")).lower()
     hits = []
@@ -642,6 +658,7 @@ def clasificar_actividad(tipo_solicitud, detalle=""):
 
     return hits
 
+# Convierte hora con am/pm a formato 24 h (HH:MM).
 def _hora_24(hh, mm, mer):
     h = int(hh)
     if mer:
@@ -652,6 +669,7 @@ def _hora_24(hh, mm, mer):
             h = 0
     return f"{h:02d}:{mm}"
 
+# Separa párrafos extra pegados al último bloque numerado.
 def _separar_adicionales(bloques):
     salida = []
     for b in bloques:
@@ -668,6 +686,7 @@ def _separar_adicionales(bloques):
                 salida[-1] += "\n" + extra
     return salida
 
+# Convierte el texto de una agenda en filas para Google Sheets (una por actividad).
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
@@ -1221,6 +1240,7 @@ def procesar_agenda(texto):
                 prop_txt = f"{trato} {persona_simple.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
+        # Arma el diccionario de una fila con todas las columnas de la hoja.
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
                 "FECHA DE SOLICITUD": fecha_solicitud,
@@ -1302,6 +1322,7 @@ def procesar_agenda(texto):
 
     return filas
 
+# Agrega las filas a la hoja principal (con consecutivo) y las replica en la del jefe.
 def subir_a_sheets(filas):
     creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     if creds_json:
@@ -1345,6 +1366,7 @@ def subir_a_sheets(filas):
     return len(filas)
 
 
+# Agrega las filas a la hoja del jefe, con director del tramo.
 def _subir_a_sheet_jefe(client, filas_jefe):
     spreadsheet_jefe = client.open_by_key(SPREADSHEET_ID_JEFE)
     ws_jefe = spreadsheet_jefe.get_worksheet(0)
@@ -1372,10 +1394,12 @@ def _subir_a_sheet_jefe(client, filas_jefe):
 
     ws_jefe.append_rows(datos_jefe, value_input_option="USER_ENTERED")
 
+# Página principal: pegar agenda.
 @app.route("/")
 def index():
     return render_template("index.html")
 
+# API: procesa el texto enviado desde la web y lo sube a Sheets.
 @app.route("/procesar", methods=["POST"])
 def procesar():
     try:
@@ -1390,12 +1414,14 @@ def procesar():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Sirve el service worker de la PWA.
 @app.route("/sw.js")
 def service_worker():
     # Servido desde raíz para que el scope del SW cubra toda la app
     return app.send_static_file("sw.js")
 
 
+# Recibe texto compartido desde el celular (PWA) y lo sube a Sheets.
 @app.route("/share", methods=["GET", "POST"])
 def share():
     if request.method == "POST":
@@ -1441,6 +1467,7 @@ _buffer_lock = threading.Lock()
 _mensajes_buffer = {}  # chat_id -> {"texto": str, "timer": Timer}
 BUFFER_DELAY = 4  # segundos de espera para juntar fragmentos partidos por Telegram
 
+# Envía un mensaje de Telegram (silencioso si falla).
 def telegram_enviar(chat_id, texto):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -1454,6 +1481,7 @@ def telegram_enviar(chat_id, texto):
     except requests.RequestException:
         pass
 
+# Webhook de Telegram: valida, evita duplicados y junta mensajes partidos.
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
     # 1) Seguridad: el secreto que Telegram manda en cada llamada.
@@ -1504,6 +1532,7 @@ def telegram_webhook():
     return "", 200
 
 
+# Procesa la agenda acumulada de un chat y responde con el resultado.
 def _procesar_buffer(chat_id):
     with _buffer_lock:
         entry = _mensajes_buffer.pop(chat_id, None)
@@ -1557,6 +1586,7 @@ def _procesar_buffer(chat_id):
 
 # API AGENDA
 
+# API del dashboard: carga por proyecto, estado, dependencia y próximas actividades.
 @app.route("/api/agenda")
 def api_agenda():
     from collections import defaultdict, Counter
@@ -1636,6 +1666,7 @@ def api_agenda():
             if fn:
                 serie[fn] += 1
 
+        # Extrae HH:MM de 'FECHA Y HORA'.
         def hora_de(fh):
             partes = str(fh).split(maxsplit=1)
             if len(partes) < 2:
@@ -1643,6 +1674,7 @@ def api_agenda():
             m = re.search(r'\d{1,2}:\d{2}', partes[1])
             return m.group(0) if m else ""
 
+        # Lista las 10 actividades más recientes dentro de la ventana de fechas.
         def construir_agenda(filas, piso, tope, fdt, hde, inv):
             items = []
             for f in filas:
@@ -1679,6 +1711,7 @@ def api_agenda():
 
 # API CONTEO
 
+# API del conteo: actividades por categoría desde abril 2026.
 @app.route("/api/conteo")
 def api_conteo():
     from collections import Counter
@@ -1702,6 +1735,7 @@ def api_conteo():
         PISO = datetime(2026, 4, 1).date()
         HOY = datetime.now().date()
 
+        # Obtiene la fecha de una fila (acepta dd/mm/aaaa o mm/dd/aaaa).
         def fecha_actividad(f):
             s = str(f.get("FECHA Y HORA", "")).split()
             if not s:
@@ -1763,6 +1797,7 @@ def api_conteo():
 
 # API TIPO DE PROPIEDAD
 
+# API del conteo por tipo de propiedad.
 @app.route("/api/tipo_propiedad")
 def api_tipo_propiedad():
     from collections import Counter
@@ -1810,18 +1845,21 @@ def api_tipo_propiedad():
 
 # RUTA A DASHBOARD
 
+# Página del dashboard.
 @app.route("/dashboard")
 def dashboard():
     return render_template("dashboard.html")
 
 # RUTA A CONTEO
 
+# Página del conteo por categoría.
 @app.route("/conteo")
 def conteo_dashboard():
     return render_template("conteo.html")
 
 # RUTA A TIPO DE PROPIEDAD
 
+# Página del conteo por tipo de propiedad.
 @app.route("/propiedad")
 def propiedad_dashboard():
     return render_template("propiedad.html")
