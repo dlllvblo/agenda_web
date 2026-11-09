@@ -8,6 +8,7 @@ import json
 import requests
 
 HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
+
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
 import unicodedata
@@ -31,6 +32,7 @@ mapa_proyectos = {
 # SHEET JEFE
 
 SPREADSHEET_ID_JEFE = "1umdQV1Qt4FpkXXu_dzZPh_XKV7x1-EYsbUQucd5Zf9w"
+SPREADSHEET_ID = "1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk"
 
 PROYECTOS_JEFE = {
     mapa_proyectos["TSNL"],
@@ -113,7 +115,7 @@ def _mas_parecida(palabra, opciones):
 
 # Busca el proyecto por nombre tolerando errores de dedo (Ej. POSTOSI → POTOSI).
 def _proyecto_por_nombre(texto):
-    palabras = _norm(texto).split()
+    palabras = [w for w in _norm(texto).split() if not re.fullmatch(r't\d+|tramo|\d+', w)]
     exacto = _PROY_POR_NOMBRE.get(frozenset(palabras))
     if exacto:
         return exacto
@@ -254,19 +256,12 @@ def _es_url_maps(url):
         return False
     return any(d in url for d in ("goo.gl", "google.com", "share.google"))
 
-def resumir_actividad(linea, detalle=""):
-    """Resume la actividad en UNA línea técnica y concisa, combinando línea principal
-       y campo Actividad si existe. Fallback: texto original."""
-    base = (linea or "").strip()
-    extra = (detalle or "").strip()
-    if extra and extra != base:
-        base = f"{base}. {extra}" if base else extra
-
+# Llama a Haiku y devuelve su texto; None si falla (el error queda en el log).
+def _llamar_haiku(system, mensaje, max_tokens, temperature, etiqueta):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("[haiku resumen] Falta ANTHROPIC_API_KEY; se usa el texto base.", flush=True)
-    if not api_key or not base:
-        return base
+        print(f"[haiku {etiqueta}] Falta ANTHROPIC_API_KEY; se usa el texto base.", flush=True)
+        return None
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -277,31 +272,41 @@ def resumir_actividad(linea, detalle=""):
             },
             json={
                 "model": HAIKU_MODEL,
-                "max_tokens": 120,
-                "temperature": 0.7,
-                "system": SYSTEM_RESUMEN,
-                "messages": [{"role": "user", "content": f"Actividad: {base}"}],
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system,
+                "messages": [{"role": "user", "content": mensaje}],
             },
             timeout=8,
         )
         resp.raise_for_status()
-        resumen = resp.json()["content"][0]["text"].strip()
-        # Red de seguridad: si Haiku pidió datos en vez de redactar, usa el texto base.
-        malo = (
-            not resumen
-            or "\n" in resumen
-            or len(resumen) > 220
-            or resumen.rstrip().endswith(":")
-            or "?" in resumen
-            or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con|datos espec[ií]ficos)', resumen)
-        )
-        return base if malo else corregir_siglas(resumen)
+        return resp.json()["content"][0]["text"].strip()
     except requests.HTTPError as e:
-        print(f"[haiku resumen] HTTP {e.response.status_code}: {e.response.text[:300]}", flush=True)
-        return base
+        print(f"[haiku {etiqueta}] HTTP {e.response.status_code}: {e.response.text[:300]}", flush=True)
     except Exception as e:
-        print(f"[haiku resumen] {type(e).__name__}: {e}", flush=True)
+        print(f"[haiku {etiqueta}] {type(e).__name__}: {e}", flush=True)
+    return None
+
+def resumir_actividad(linea, detalle=""):
+    """Resume la actividad en UNA línea técnica y concisa, combinando línea principal
+       y campo Actividad si existe. Fallback: texto original."""
+    base = (linea or "").strip()
+    extra = (detalle or "").strip()
+    if extra and extra != base:
+        base = f"{base}. {extra}" if base else extra
+    if not base:
         return base
+    resumen = _llamar_haiku(SYSTEM_RESUMEN, f"Actividad: {base}", 120, 0.7, "resumen")
+    # Si Haiku falló o pidió datos en vez de redactar, se usa el texto base.
+    malo = (
+        not resumen
+        or "\n" in resumen
+        or len(resumen) > 220
+        or resumen.rstrip().endswith(":")
+        or "?" in resumen
+        or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con|datos espec[ií]ficos)', resumen)
+    )
+    return base if malo else corregir_siglas(resumen)
 
 CORRECCIONES = {
     "palacio municipal": "Palacio Municipal",
@@ -323,7 +328,7 @@ CORRECCIONES_SIGLAS = {
     r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
 }
 
-# Corrige siglas que Haiku suele expandir mal.
+# Corrige siglas que Haiku suele expandir mal
 def corregir_siglas(texto):
     for patron, correcto in CORRECCIONES_SIGLAS.items():
         texto = re.sub(patron, correcto, texto, flags=re.IGNORECASE)
@@ -380,43 +385,15 @@ def formatear_punto_encuentro(texto_ubic):
     if not base:
         return ""
     fallback = base[0].upper() + base[1:].lower()
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return fallback
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": HAIKU_MODEL,
-                "max_tokens": 100,
-                "temperature": 0.5,
-                "system": SYSTEM_PUNTO_ENCUENTRO,
-                "messages": [{"role": "user", "content": f"Nota: {base}"}],
-            },
-            timeout=8,
-        )
-        resp.raise_for_status()
-        frase = resp.json()["content"][0]["text"].strip()
-        malo = (
-            not frase
-            or "\n" in frase
-            or len(frase) > 220
-            or "?" in frase
-            or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con)', frase)
-        )
-        return fallback if malo else frase
-    except requests.HTTPError as e:
-        print(f"[haiku punto] HTTP {e.response.status_code}: {e.response.text[:300]}", flush=True)
-        return fallback
-    except Exception as e:
-        print(f"[haiku punto] {type(e).__name__}: {e}", flush=True)
-        return fallback
+    frase = _llamar_haiku(SYSTEM_PUNTO_ENCUENTRO, f"Nota: {base}", 100, 0.5, "punto")
+    malo = (
+        not frase
+        or "\n" in frase
+        or len(frase) > 220
+        or "?" in frase
+        or re.search(r'(?i)(necesito que|proporci|por favor|no puedo redactar|no cuento con)', frase)
+    )
+    return fallback if malo else frase
 
 # Capitaliza frases institucionales y nombres tras Municipio/Ejido.
 def normalizar_capitalizacion(texto):
@@ -712,14 +689,21 @@ def procesar_agenda(texto):
     proyecto_match = re.search(r"\b(?:Agenda|Proyecto)(?:\s+Ferroviario)?\s*:?\s*(.*)",
                                texto, re.IGNORECASE)
     proyecto_raw = proyecto_match.group(1).strip() if proyecto_match else ""
+    # "T1" = Segmento 1, se agrega al texto de cada actividad.
+    m_seg = re.search(r'(?i)\bT(\d+)\b', proyecto_raw)
+    segmento = f"Segmento {m_seg.group(1)}" if m_seg else ""
     if not proyecto_raw:
         proyecto_final = "SIN PROYECTO"
     else:
-        toks = proyecto_raw.split()
-        ultimo = _norm(toks[-1]) if toks else ""
-        ultimo = _ALIAS_CLAVE.get(ultimo, ultimo)
-        if ultimo not in _PROY_POR_CLAVE:
-            ultimo = _mas_parecida(ultimo, _PROY_POR_CLAVE)
+        # Clave en cualquier palabra, de derecha a izquierda ("TQSL T1" → TQSLP).
+        ultimo = ""
+        for tok in reversed(proyecto_raw.split()):
+            cand = _ALIAS_CLAVE.get(_norm(tok), _norm(tok))
+            if cand not in _PROY_POR_CLAVE:
+                cand = _mas_parecida(cand, _PROY_POR_CLAVE)
+            if cand in _PROY_POR_CLAVE:
+                ultimo = cand
+                break
         if ultimo in _PROY_POR_CLAVE:                          
             proyecto_final = _PROY_POR_CLAVE[ultimo]
         elif _proyecto_por_nombre(proyecto_raw):
@@ -881,6 +865,8 @@ def procesar_agenda(texto):
         linea_principal = re.sub(r'\.$', '', linea_principal).strip()
         linea_principal = normalizar_capitalizacion(linea_principal)
         linea_principal = normalizar_nombres_ejido(linea_principal)
+        if segmento and segmento.lower() not in linea_principal.lower():
+            linea_principal = f"{linea_principal} ({segmento})"
 
         actividad_txt = linea_principal
 
@@ -1340,17 +1326,26 @@ def procesar_agenda(texto):
 
     return filas
 
-# Agrega las filas a la hoja principal (con consecutivo) y las replica en la del jefe.
-def subir_a_sheets(filas):
+# Conecta a Google Sheets con la cuenta de servicio (Render o credenciales.json).
+def _cliente_sheets():
     creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     if creds_json:
-        info = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
     else:
         creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
+    return gspread.Client(auth=creds)
 
-    client = gspread.Client(auth=creds)
-    SPREADSHEET_ID = "1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk"
+# Lee la hoja principal como lista de diccionarios (vacía si no hay datos).
+def _filas_hoja_principal():
+    valores = _cliente_sheets().open_by_key(SPREADSHEET_ID).get_worksheet(0).get_all_values()
+    if len(valores) < 2:
+        return []
+    headers = [h.replace("\n", " ").strip() for h in valores[0]]
+    return [dict(zip(headers, row)) for row in valores[1:]]
+
+# Agrega las filas a la hoja principal (con consecutivo) y las replica en la del jefe.
+def subir_a_sheets(filas):
+    client = _cliente_sheets()
     spreadsheet = client.open_by_key(SPREADSHEET_ID)
     worksheet = spreadsheet.get_worksheet(0)
     headers = worksheet.row_values(1)
@@ -1610,19 +1605,9 @@ def api_agenda():
     from collections import defaultdict, Counter
     import traceback
     try:
-        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-        if creds_json:
-            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
-        else:
-            creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
-        client = gspread.Client(auth=creds)
-        ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
-
-        valores = ws.get_all_values()
-        if len(valores) < 2:
+        filas = _filas_hoja_principal()
+        if not filas:
             return jsonify({"carga": {}, "edo": {}, "dep": {}, "serie": {}, "agenda": []})
-        headers = [h.replace("\n", " ").strip() for h in valores[0]]
-        filas = [dict(zip(headers, row)) for row in valores[1:]]
 
         inv = {v: k for k, v in mapa_proyectos.items()}
         carga, edo, dep, serie = Counter(), Counter(), Counter(), defaultdict(int)
@@ -1735,20 +1720,10 @@ def api_conteo():
     from collections import Counter
     import traceback
     try:
-        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-        if creds_json:
-            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
-        else:
-            creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
-        client = gspread.Client(auth=creds)
-        ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
-
-        valores = ws.get_all_values()
-        if len(valores) < 2:
+        filas = _filas_hoja_principal()
+        if not filas:
             return jsonify({"conteo": {}, "cat3_desglose": {}, "otras": 0,
                             "sin_clasificar": [], "total": 0})
-        headers = [h.replace("\n", " ").strip() for h in valores[0]]
-        filas = [dict(zip(headers, row)) for row in valores[1:]]
 
         PISO = datetime(2026, 4, 1).date()
         HOY = datetime.now().date()
@@ -1821,19 +1796,9 @@ def api_tipo_propiedad():
     from collections import Counter
     import traceback
     try:
-        creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-        if creds_json:
-            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
-        else:
-            creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
-        client = gspread.Client(auth=creds)
-        ws = client.open_by_key("1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk").get_worksheet(0)
-
-        valores = ws.get_all_values()
-        if len(valores) < 2:
+        filas = _filas_hoja_principal()
+        if not filas:
             return jsonify({"conteo": {}, "sin_dato": 0, "total": 0})
-        headers = [h.replace("\n", " ").strip() for h in valores[0]]
-        filas = [dict(zip(headers, row)) for row in valores[1:]]
 
         conteo = Counter()
         display = {}
