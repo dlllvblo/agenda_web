@@ -8,7 +8,6 @@ import json
 import requests
 
 HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
-
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
 import unicodedata
@@ -307,7 +306,7 @@ CORRECCIONES_SIGLAS = {
     r'Bienes\s+Dominiales\s+del\s+Tren': 'Bienes Distintos a la Tierra',
 }
 
-# Corrige siglas que Haiku suele expandir mal
+# Corrige siglas que Haiku suele expandir mal.
 def corregir_siglas(texto):
     for patron, correcto in CORRECCIONES_SIGLAS.items():
         texto = re.sub(patron, correcto, texto, flags=re.IGNORECASE)
