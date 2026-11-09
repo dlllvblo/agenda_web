@@ -11,6 +11,7 @@ HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
 import unicodedata
+import difflib
 
 app = Flask(__name__)
 
@@ -101,6 +102,22 @@ _ALIAS_NOMBRE_PROYECTO = {
     frozenset({'san', 'luis', 'saltillo'}): mapa_proyectos['TSLPS'],   # "SAN LUIS - SALTILLO"
 }
 _PROY_POR_NOMBRE.update(_ALIAS_NOMBRE_PROYECTO)
+_VOCAB_PROY = sorted({w for k in _PROY_POR_NOMBRE for w in k})
+
+# Corrige una palabra al término más parecido de la lista; sin cambio si no hay uno claro.
+def _mas_parecida(palabra, opciones):
+    puntos = sorted(((difflib.SequenceMatcher(None, palabra, o).ratio(), o) for o in opciones), reverse=True)
+    if puntos and puntos[0][0] >= 0.8 and (len(puntos) == 1 or puntos[0][0] > puntos[1][0]):
+        return puntos[0][1]
+    return palabra
+
+# Busca el proyecto por nombre tolerando errores de dedo (Ej. POSTOSI → POTOSI).
+def _proyecto_por_nombre(texto):
+    palabras = _norm(texto).split()
+    exacto = _PROY_POR_NOMBRE.get(frozenset(palabras))
+    if exacto:
+        return exacto
+    return _PROY_POR_NOMBRE.get(frozenset(_mas_parecida(w, _VOCAB_PROY) for w in palabras))
 _ALIAS_CLAVE = {
     'tqm': 'tmq',   
 }
@@ -701,10 +718,12 @@ def procesar_agenda(texto):
         toks = proyecto_raw.split()
         ultimo = _norm(toks[-1]) if toks else ""
         ultimo = _ALIAS_CLAVE.get(ultimo, ultimo)
+        if ultimo not in _PROY_POR_CLAVE:
+            ultimo = _mas_parecida(ultimo, _PROY_POR_CLAVE)
         if ultimo in _PROY_POR_CLAVE:                          
             proyecto_final = _PROY_POR_CLAVE[ultimo]
-        elif frozenset(_norm(proyecto_raw).split()) in _PROY_POR_NOMBRE:   
-            proyecto_final = _PROY_POR_NOMBRE[frozenset(_norm(proyecto_raw).split())]
+        elif _proyecto_por_nombre(proyecto_raw):
+            proyecto_final = _proyecto_por_nombre(proyecto_raw)
         else:
             proyecto_final = proyecto_raw                      
     if proyecto_final not in mapa_proyectos.values():
