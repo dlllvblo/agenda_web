@@ -911,13 +911,7 @@ def procesar_agenda(texto):
         municipio_match = re.search(r"Municipio:\s*(.*)", bloque, re.IGNORECASE)
         if not municipio_match:
             municipio_match = re.search(r"Municipio:\s*(.*)", encabezado, re.IGNORECASE)
-        municipio = ""
-        if municipio_match:
-            _muns = []
-            for _g in municipio_match.group(1).split(';'):
-                _segs = [x.strip() for x in _g.split(',') if x.strip()]
-                _muns.extend(_segs[:-1] if len(_segs) > 1 else _segs)
-            municipio = ", ".join(_muns)
+        municipio = municipio_match.group(1).strip().rstrip('.').strip() if municipio_match else ""
         if municipio_match and municipio.endswith(')'):
             linea_actual = bloque[:municipio_match.start()].rsplit('\n', 1)[-1]
             if linea_actual.count('(') > linea_actual.count(')'):
