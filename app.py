@@ -837,6 +837,7 @@ def procesar_agenda(texto):
         linea_principal = re.sub(r'(?i)^\s*buen[oa]s?\s+(?:noches|tardes|d[ií]as)[\s,\.]*', '', linea_principal).strip()
         linea_principal = re.sub(r'(?i)^\s*adicional\s+a\s+la\s+agenda[^,]*,\s*', '', linea_principal).strip()
         linea_principal = re.sub(r'(?i)^\s*del\s+Frente\s+\d+[\s,]*', '', linea_principal).strip()
+        linea_principal = re.sub(r'(?i)\s*\|\s*F\d+(?:\s*(?:[-–,]|y)\s*F?\d+)*\s*$', '', linea_principal).strip()
         linea_principal = re.sub(r'^[-–—\s]+', '', linea_principal).strip()
         if linea_principal[:1].islower():
             linea_principal = linea_principal[0].upper() + linea_principal[1:]
@@ -888,6 +889,11 @@ def procesar_agenda(texto):
                 num = frente_inline.group(1)
                 frente = type('_', (), {'group': lambda self, n: num})()
         if not frente:
+            frente_pipe = re.search(r'\|\s*F\.?\s*(\d+)\b', bloque, re.IGNORECASE)
+            if frente_pipe:
+                num = frente_pipe.group(1)
+                frente = type('_', (), {'group': lambda self, n: num})()
+        if not frente:
             frente_bloque = re.search(r'\bFrente\s+(\d+)\b', bloque, re.IGNORECASE)
             if frente_bloque:
                 num = frente_bloque.group(1)
@@ -905,7 +911,13 @@ def procesar_agenda(texto):
         municipio_match = re.search(r"Municipio:\s*(.*)", bloque, re.IGNORECASE)
         if not municipio_match:
             municipio_match = re.search(r"Municipio:\s*(.*)", encabezado, re.IGNORECASE)
-        municipio = municipio_match.group(1).split(',')[0].strip() if municipio_match else ""
+        municipio = ""
+        if municipio_match:
+            _muns = []
+            for _g in municipio_match.group(1).split(';'):
+                _segs = [x.strip() for x in _g.split(',') if x.strip()]
+                _muns.extend(_segs[:-1] if len(_segs) > 1 else _segs)
+            municipio = ", ".join(_muns)
         if municipio_match and municipio.endswith(')'):
             linea_actual = bloque[:municipio_match.start()].rsplit('\n', 1)[-1]
             if linea_actual.count('(') > linea_actual.count(')'):
@@ -979,11 +991,13 @@ def procesar_agenda(texto):
             if url_suelta:
                 url = url_suelta.group(1).strip()
         if not url:                   # dirección + link en la misma línea: saca el link
-            m_embed = re.search(r'https?://\S+', texto_ubic)
+            m_embed = re.search(r'https?://[^\s)\]]+', texto_ubic)
             url = m_embed.group(0).strip() if m_embed else texto_ubic
         nota_punto_encuentro = ""
         if texto_ubic and url and not url_directa and url.startswith('http'):
-            nota_punto_encuentro = formatear_punto_encuentro(texto_ubic)
+            _ubic_sin_url = re.sub(r'\(?\s*https?://[^\s)\]]+\s*\)?', '', texto_ubic).strip(' -–:,;')
+            if _ubic_sin_url:
+                nota_punto_encuentro = formatear_punto_encuentro(_ubic_sin_url)
         direccion_extra = ""
         _direccion_match = re.search(
             r"(?im)^\s*Ubicaci[oó]n(?:es)?\s*:\s*(?!https?://)(\S[^\n]*)", bloque
@@ -1111,7 +1125,7 @@ def procesar_agenda(texto):
             ejido_inline = re.search(
                 r'(?i:\b(?:Comisariado\s+Ejidal\s+de|Ejidal\s+de|Ejidos?\s+de|Ejidos?))\s+'
                 r'["\u2018\u2019\u201c\u201d\']?'
-                r'([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s]+?)'
+                r'([A-ZÁÉÍÓÚÑ](?:[a-záéíóúñA-ZÁÉÍÓÚÑ\s]|(?<=\w)[-–](?=\w))+?)'
                 r'(?:["\u2018\u2019\u201c\u201d\']|\s*\(|\)|,|\.|\n|$|(?=\s+y\s+parcelas?\b))',
                 linea_principal
             )
