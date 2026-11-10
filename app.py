@@ -349,9 +349,9 @@ SYSTEM_RESUMEN = (
     "- No inventes datos que no estén. No agregues introducción ni explicación.\n"
     "- Responde SOLO con la línea, sin comillas.\n"
     "- El ejecutor SIEMPRE es SEDATU y las dependencias participantes; NUNCA un particular.\n"
-    "- Las personas nombradas (entre paréntesis, como 'propietario:' o con Sr./Sra.) son los "
+    "- Las personas nombradas (entre paréntesis, como 'propietario:' o 'titular', o con Sr./Sra./C.) son los "
     "propietarios o afectados, no quien ejecuta. Si hay propietario, refiérelo como "
-    "'del Sr. X' o 'de la Sra. X' según el nombre.\n"
+    "'del C. X'; NUNCA deduzcas Sr. o Sra. por el nombre. Si el texto ya trae Sr. o Sra., respétalo.\n"
     "- NUNCA pidas más datos, NUNCA hagas preguntas, NUNCA pidas aclaraciones.\n"
     "- Aunque la actividad sea muy escueta (ej. 'Caminamiento Ejidal'), redáctala "
     "igual en pasado con lo que haya (ej. 'Se realizó caminamiento ejidal'). "
@@ -684,6 +684,15 @@ def _separar_adicionales(bloques):
                 salida[-1] += "\n" + extra
     return salida
 
+# Prefijo del propietario: señor o señora explícito = Sr./Sra.; propietario(a)/titular = C.
+def _trato_propietario(palabra):
+    p = palabra.lower()
+    if p.startswith(('señora', 'senora')):
+        return "Sra."
+    if p.startswith(('señor', 'senor')):
+        return "Sr."
+    return "C."
+
 # Convierte el texto de una agenda en filas para Google Sheets (una por actividad).
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
@@ -803,7 +812,9 @@ def procesar_agenda(texto):
             r"Hora:\s*(\d{1,2})\s*(?:hrs?|horas?)\b",
             bloque, re.IGNORECASE
         )
-        if hora_doble_match:
+        if re.search(r'(?i)Hora\s*:\s*(?:Por\s+confirmar|Pendiente)', bloque):
+            hora_txt = "Por confirmar"
+        elif hora_doble_match:
             h1 = _hora_24(hora_doble_match.group(1), hora_doble_match.group(2), None)
             z1 = hora_doble_match.group(3).strip()
             h2 = _hora_24(hora_doble_match.group(4), hora_doble_match.group(5), None)
@@ -996,6 +1007,12 @@ def procesar_agenda(texto):
                 if f_asis:
                     num = f_asis.group(1)
                     frente = type('_', (), {'group': lambda self, n: num})()
+        # Fallback: frente en el encabezado ("Agenda de caminamientos F3 TQSLP", "F2, F7")
+        if not frente:
+            f_enc = re.search(r'\bF\.?\s*(\d+(?:\s*(?:,|y)\s*F?\.?\s*\d+)*)\b', encabezado, re.IGNORECASE)
+            if f_enc:
+                _lista_enc = "-".join(re.findall(r'\d+', f_enc.group(1)))
+                frente = type('_', (), {'group': lambda self, n: _lista_enc})()
 
         # UBICACIÓN
         ubicacion = re.search(
@@ -1136,10 +1153,13 @@ def procesar_agenda(texto):
                     nucleo_txt = bruto + sufijo
                     nucleo = type('_', (), {'group': lambda self, n: nucleo_txt})()
         if not nucleo:
-            _ejq = re.findall(
-                r'(?i:\bEjidos?\s+(?:de\s+)?)[\u201c\u2018"\']([^\u201c\u201d\u2018\u2019"\']+)[\u201d\u2019"\']',
+            # Todos los nombres entrecomillados tras "ejido(s)": "ejidos “A” y “B”"
+            _ejq = []
+            for _seg in re.finditer(
+                r'(?i:\bEjidos?\s+(?:de\s+)?)((?:[\u201c\u2018"\'][^\u201c\u201d\u2018\u2019"\']+[\u201d\u2019"\'](?:\s*(?:,|y|e)\s*)?)+)',
                 linea_principal
-            )
+            ):
+                _ejq += re.findall(r'[\u201c\u2018"\']([^\u201c\u201d\u2018\u2019"\']+)[\u201d\u2019"\']', _seg.group(1))
             _vist = set(); _ejq = [e.strip() for e in _ejq
                                    if e.strip() and not (e.strip().lower() in _vist or _vist.add(e.strip().lower()))]
             if len(_ejq) >= 2:
@@ -1179,11 +1199,11 @@ def procesar_agenda(texto):
         particular = re.search(r"Propietarios?:\s*(.*)|Particular:\s*(.*)", bloque, re.IGNORECASE)
         if not particular:
             propietario_inline = re.search(
-                r'(?i:\b(?:se[ñn]or[a]?|propietari[ao]))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+)',
+                r'(?i:\b(se[ñn]or[a]?|propietari[ao]))\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+)',
                 linea_principal
             )
             if propietario_inline:
-                prop_txt = propietario_inline.group(1).strip()
+                prop_txt = f"{_trato_propietario(propietario_inline.group(1))} {propietario_inline.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             titulo_inline = re.search(
@@ -1200,7 +1220,7 @@ def procesar_agenda(texto):
                 linea_principal
             )
             if ciudadano_inline:
-                prop_txt = f"Sr. {ciudadano_inline.group(1).strip()}"
+                prop_txt = f"C. {ciudadano_inline.group(1).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             titular_inline = re.search(
@@ -1213,9 +1233,16 @@ def procesar_agenda(texto):
                 if re.match(r'(?i)(sr|sra|c)\.?\b', nombre):
                     prop_txt = nombre
                 else:
-                    primer = nombre.split()[0].lower()
-                    trato = "Sra." if primer.endswith(('a', 'á')) else "Sr."
-                    prop_txt = f"{trato} {nombre}"
+                    prop_txt = f"C. {nombre}"
+                particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
+        if not particular:
+            # "titular Marco Antonio" sin paréntesis
+            titular_libre = re.search(
+                r'(?i:\btitular(?:es)?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)',
+                linea_principal
+            )
+            if titular_libre:
+                prop_txt = f"C. {titular_libre.group(1).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
         if not particular:
             paren_inline = re.search(
@@ -1247,8 +1274,7 @@ def procesar_agenda(texto):
                 linea_principal
             )
             if persona_simple and persona_simple.group(2).lower() not in _LUGARES_PROP:
-                trato = "Sra." if re.match(r'(?i)(?:se[ñn]ora|propietaria)', persona_simple.group(1)) else "Sr."
-                prop_txt = f"{trato} {persona_simple.group(2).strip()}"
+                prop_txt = f"{_trato_propietario(persona_simple.group(1))} {persona_simple.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
         # Arma el diccionario de una fila con todas las columnas de la hoja.
