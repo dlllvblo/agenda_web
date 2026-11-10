@@ -30,14 +30,14 @@ app.config.update(
 _RUTAS_PUBLICAS = {"login", "service_worker", "telegram_webhook", "static"}
 
 LOGIN_HTML = """<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Acceso</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>TRAXA</title>
 <link rel="icon" type="image/png" href="/static/icono.png">
-<style>body{font-family:sans-serif;background:#691B4F;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+<style>body{font-family:sans-serif;background:#000;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
 form{background:#fff;border-radius:16px;padding:28px;width:min(320px,90vw);box-sizing:border-box}
-h2{margin:0 0 16px;color:#691B4F}input,button{width:100%;padding:12px;border-radius:10px;font-size:16px;box-sizing:border-box}
+h2{margin:0 0 16px;color:#691B4F;text-align:center;letter-spacing:2px}input,button{width:100%;padding:12px;border-radius:10px;font-size:16px;box-sizing:border-box}
 input{border:1px solid #ccc;margin-bottom:12px}button{border:0;background:#691B4F;color:#fff;cursor:pointer}
 .err{color:#b00020;margin:0 0 12px}</style></head><body>
-<form method="post"><h2>Agenda SEDATU</h2>
+<form method="post"><h2>TRAXA</h2>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
 <input type="password" name="clave" placeholder="Contraseña" autofocus required>
 <button type="submit">Entrar</button></form></body></html>"""
