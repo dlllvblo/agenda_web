@@ -88,10 +88,9 @@ mapa_proyectos = {
     }
 
 
-# SHEET JEFE
-
-SPREADSHEET_ID_JEFE = "1umdQV1Qt4FpkXXu_dzZPh_XKV7x1-EYsbUQucd5Zf9w"
-SPREADSHEET_ID = "1xwnS8DiEB4rzs7I8BRGgUbtzDF8M_zn58qYUJS-Mvmk"
+# HOJAS
+SPREADSHEET_ID_JEFE = os.environ.get("SPREADSHEET_ID_JEFE", "")
+SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "")
 
 PROYECTOS_JEFE = {
     mapa_proyectos["TSNL"],
@@ -1744,6 +1743,12 @@ def _procesar_buffer(chat_id):
 
 # API AGENDA
 
+# Manda el error completo al log y al navegador solo un mensaje genérico.
+def _error_api():
+    import traceback
+    print(traceback.format_exc(), flush=True)
+    return jsonify({"error": "No se pudo leer el Sheet; revisa el log del servidor."}), 500
+
 # API del dashboard: carga por proyecto, estado, dependencia y próximas actividades.
 @app.route("/api/agenda")
 def api_agenda():
@@ -1855,7 +1860,7 @@ def api_agenda():
             "agenda": construir_agenda(filas, fecha_piso, fecha_tope, fecha_dt, hora_de, inv),
         })
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        return _error_api()
 
 # API CONTEO
 
@@ -1931,7 +1936,7 @@ def api_conteo():
                         "hasta": HOY.strftime("%d/%m/%Y")},
         })
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        return _error_api()
 
 # API TIPO DE PROPIEDAD
 
@@ -1969,7 +1974,7 @@ def api_tipo_propiedad():
             "total": total,
         })
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        return _error_api()
 
 # RUTA A DASHBOARD
 
