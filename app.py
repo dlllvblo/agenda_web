@@ -274,7 +274,6 @@ def _llamar_haiku(system, mensaje, max_tokens, temperature, etiqueta):
             json={
                 "model": HAIKU_MODEL,
                 "max_tokens": max_tokens,
-                "temperature": temperature,
                 "system": system,
                 "messages": [{"role": "user", "content": mensaje}],
             },
