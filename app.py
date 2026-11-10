@@ -710,6 +710,7 @@ def detectar_tipo_propiedad(bloque, linea, nucleo_txt):
 
 # Convierte el texto de una agenda en filas para Google Sheets (una por actividad).
 def procesar_agenda(texto):
+    texto = _INVISIBLES_RE.sub('', texto)
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
     texto = texto.replace('*', '')
     texto = re.sub(r'(?m)^\s*_+|_+\s*$', '', texto)
@@ -1377,6 +1378,29 @@ def procesar_agenda(texto):
 
     return filas
 
+_INVISIBLES_RE = re.compile(r'[\u200b-\u200d\u2060\ufeff]')
+
+# Separa varias agendas pegadas juntas: por líneas de guiones o por un nuevo encabezado
+# ("PROYECTO:" / "Agenda ...") que aparece después de alguna actividad numerada.
+def procesar_agendas(texto):
+    texto = _INVISIBLES_RE.sub('', texto)
+    partes, actual = [], []
+    for linea in texto.split('\n'):
+        es_sep = re.match(r'^[ \t]*-{5,}[ \t]*$', linea)
+        es_enc = re.match(r'^[ \t]*\W*(?:PROYECTO\s*:|Agenda\b)', linea, re.IGNORECASE)
+        ya_hay_act = any(re.match(r'^\s*\d+[\.\-]', l) for l in actual)
+        if es_sep or (es_enc and ya_hay_act):
+            partes.append('\n'.join(actual))
+            actual = [] if es_sep else [linea]
+        else:
+            actual.append(linea)
+    partes.append('\n'.join(actual))
+    filas = []
+    for parte in partes:
+        if parte.strip():
+            filas.extend(procesar_agenda(parte.strip()))
+    return filas
+
 # Conecta a Google Sheets con la cuenta de servicio (Render o credenciales.json).
 def _cliente_sheets():
     creds_json = os.environ.get("GOOGLE_CREDENTIALS")
@@ -1470,7 +1494,7 @@ def procesar():
         texto = request.json.get("texto", "")
         if not texto.strip():
             return jsonify({"error": "El texto está vacío"}), 400
-        filas = procesar_agenda(texto)
+        filas = procesar_agendas(texto)
         if not filas:
             return jsonify({"error": "No se encontraron actividades en el texto"}), 400
         total = subir_a_sheets(filas)
@@ -1497,7 +1521,7 @@ def share():
         return "No llegó texto para procesar", 400
 
     try:
-        filas = procesar_agenda(texto)
+        filas = procesar_agendas(texto)
         if not filas:
             return "<h2>⚠️ No se encontraron actividades en el texto compartido</h2>", 400
         total = subir_a_sheets(filas)
@@ -1622,12 +1646,16 @@ def _procesar_buffer(chat_id):
     _agendas_recientes[firma] = ahora
 
     try:
-        filas = procesar_agenda(texto)
+        filas = procesar_agendas(texto)
         if not filas:
             telegram_enviar(chat_id, "No encontré actividades en ese texto.")
             return
         total = subir_a_sheets(filas)
-        proyecto = filas[0].get("PROYECTO FERROVIARIO", "")
+        # Actividades por proyecto, en el orden en que llegaron
+        por_proyecto = {}
+        for f in filas:
+            p = f.get("PROYECTO FERROVIARIO", "")
+            por_proyecto[p] = por_proyecto.get(p, 0) + 1
 
         # Filas con link de maps que NO geocodificó (link roto/404 o fuera de capa)
         sin_geo = [
@@ -1635,11 +1663,19 @@ def _procesar_buffer(chat_id):
             if _es_url_maps(f.get("UBICACIÓN", ""))
             and not f.get("ESTADO", "").strip()
         ]
-        msg = f"✅ Subí {total} actividad(es) a Sheets ({proyecto})."
+        if len(por_proyecto) == 1:
+            msg = f"✅ Subí {total} actividad(es) a Sheets ({next(iter(por_proyecto))})."
+        else:
+            detalle_proy = "\n".join(f"• {p}: {n}" for p, n in por_proyecto.items())
+            msg = (f"✅ Subí {total} actividades de {len(por_proyecto)} proyectos a Sheets:\n"
+                   f"{detalle_proy}")
         if sin_geo:
+            claves = {v: k for k, v in mapa_proyectos.items()}
+            varios = len(por_proyecto) > 1
             detalle = "\n".join(
-                f"• {(p[-1] if len(p := f.get('FECHA Y HORA','').split()) > 1 else '--')}  "
-                f"{f.get('TIPO DE SOLICITUD','')[:40]}"
+                f"• {(p[1] if len(p := f.get('FECHA Y HORA','').split(maxsplit=1)) > 1 else '--')}  "
+                + (f"[{claves.get(f.get('PROYECTO FERROVIARIO',''), '?')}] " if varios else "")
+                + f"{f.get('TIPO DE SOLICITUD','')[:40]}"
                 for f in sin_geo
             )
             msg += (f"\n\n⚠️ {len(sin_geo)} sin ubicación (link roto o inválido). "
