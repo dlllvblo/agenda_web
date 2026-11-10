@@ -216,10 +216,17 @@
             .btn-limpiar { width: 100%; }
         }
 
+        
+        .links-vistas {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            color: rgba(245,245,245,0.7);
+        }
+
         .link-dashboard {
-            position: fixed;
-            bottom: 80px;
-            right: 28px;
             color: whitesmoke;
             font-family: 'Source Sans 3', sans-serif;
             font-size: 14px;
@@ -229,24 +236,11 @@
             border-bottom: 1.5px solid rgba(245,245,245,0.5);
             padding-bottom: 2px;
             transition: color 0.2s, border-color 0.2s;
-            z-index: 100;
         }
 
         .link-dashboard:hover {
             color: var(--arena);
             border-color: var(--arena);
-        }
-
-        @media (max-width: 480px) {
-            .link-dashboard { bottom: 70px; right: 18px; font-size: 13px; }
-        }
-
-        .link-conteo {
-            bottom: 115px; /* queda arriba de "Ver Dashboard" */
-        }
-
-        @media (max-width: 480px) {
-            .link-conteo { bottom: 100px; }
         }
 
     </style>
@@ -280,12 +274,14 @@
             <div class="status" id="status"></div>
         </div>
     </div>
+    <div class="links-vistas">
+        <a href="/conteo" class="link-dashboard">Conteo</a>
+        <span>·</span>
+        <a href="/dashboard" class="link-dashboard">Dashboard</a>
+    </div>
     <div style="position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 12px 0;">
         <img src="/static/footer.png" style="max-width: 400px; width: 80%;">
     </div>
-
-    <a href="/conteo" class="link-dashboard link-conteo">Conteo</a>
-    <a href="/dashboard" class="link-dashboard">Dashboard</a>
 
     <script>
         async function procesar() {
