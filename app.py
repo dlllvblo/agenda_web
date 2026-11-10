@@ -693,6 +693,22 @@ def _trato_propietario(palabra):
         return "Sr."
     return "C."
 
+_COD_PRIVADA_RE = re.compile(r'\b(?:MQ|AP)-[A-Z]{2,4}-P?\d{1,4}(?:-\d+)?\b|\bQRO-URB-\d+\b')
+
+# Tipo de propiedad: código MQ/AP/QRO-URB = PRIVADA; ejido = SOCIAL; dudoso (?) = vacío (hay que llenar a mano).
+def detectar_tipo_propiedad(bloque, linea, nucleo_txt):
+    if re.search(r'(?i)dominio\s+pleno', bloque):
+        return ""
+    priv = bool(_COD_PRIVADA_RE.search(bloque))
+    soc = bool(nucleo_txt) or bool(re.search(r'(?i)\bejid|uso\s+com[uú]n', linea))
+    if priv and soc:
+        return ""
+    if priv:
+        return "PRIVADA"
+    if soc:
+        return "SOCIAL"
+    return ""
+
 # Convierte el texto de una agenda en filas para Google Sheets (una por actividad).
 def procesar_agenda(texto):
     texto = re.sub(r'(?m)^([ \t]*)\*[ \t]+', r'\1- ', texto)
@@ -1277,6 +1293,9 @@ def procesar_agenda(texto):
                 prop_txt = f"{_trato_propietario(persona_simple.group(1))} {persona_simple.group(2).strip()}"
                 particular = type('_', (), {'group': lambda self, n: prop_txt if n in (1, 2) else ''})()
 
+        tipo_propiedad = detectar_tipo_propiedad(
+            bloque, linea_principal, nucleo.group(1).strip() if nucleo else "")
+
         # Arma el diccionario de una fila con todas las columnas de la hoja.
         def armar_fila(ubic_url, est_geo, mun_g, acts_desarrolladas):
             return {
@@ -1286,7 +1305,7 @@ def procesar_agenda(texto):
                 "TIPO DE SOLICITUD": actividad_txt,
                 "PROYECTO FERROVIARIO": proyecto_final,
                 "UBICACIÓN": ubic_url,
-                "TIPO DE PROPIEDAD": "",
+                "TIPO DE PROPIEDAD": tipo_propiedad,
                 "FRENTE": (
                     re.sub(r'\b(\d+)\b', r'F\1', frente.group(1).strip())
                     if frente and frente.group(1).strip().upper() != "N/A" else ""
