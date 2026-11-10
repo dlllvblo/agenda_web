@@ -7,7 +7,7 @@ import os
 import json
 import requests
 
-HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-4-5-20251001")
+HAIKU_MODEL = os.environ.get("HAIKU_MODEL", "claude-haiku-5-5")
 
 from shapely.geometry import shape, Point
 from shapely.strtree import STRtree
