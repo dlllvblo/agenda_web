@@ -1,4 +1,6 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, render_template_string, session, redirect, url_for
+import hmac
+import time
 import re
 from datetime import datetime, timedelta
 import gspread
@@ -15,6 +17,62 @@ import unicodedata
 import difflib
 
 app = Flask(__name__)
+# Sesión firmada; sin SECRET_KEY en Render las sesiones se pierden en cada reinicio.
+app.secret_key = os.environ.get("SECRET_KEY") or os.urandom(32)
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
+
+# Rutas que no piden contraseña (Tara tiene su propio secreto).
+_RUTAS_PUBLICAS = {"login", "service_worker", "telegram_webhook", "static"}
+
+LOGIN_HTML = """<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Acceso</title>
+<link rel="icon" type="image/png" href="/static/icono.png">
+<style>body{font-family:sans-serif;background:#691B4F;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+form{background:#fff;border-radius:16px;padding:28px;width:min(320px,90vw);box-sizing:border-box}
+h2{margin:0 0 16px;color:#691B4F}input,button{width:100%;padding:12px;border-radius:10px;font-size:16px;box-sizing:border-box}
+input{border:1px solid #ccc;margin-bottom:12px}button{border:0;background:#691B4F;color:#fff;cursor:pointer}
+.err{color:#b00020;margin:0 0 12px}</style></head><body>
+<form method="post"><h2>Agenda SEDATU</h2>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<input type="password" name="clave" placeholder="Contraseña" autofocus required>
+<button type="submit">Entrar</button></form></body></html>"""
+
+# Pide la contraseña antes de cualquier ruta que no sea pública.
+@app.before_request
+def _exigir_login():
+    if request.endpoint in _RUTAS_PUBLICAS or session.get("ok"):
+        return None
+    if request.path.startswith("/api/") or request.path == "/procesar":
+        return jsonify({"error": "Sesión expirada: recarga la página y vuelve a entrar"}), 401
+    sig = request.path if request.method == "GET" else "/"
+    return redirect(url_for("login", next=sig))
+
+# Pantalla de acceso con una contraseña compartida (APP_PASSWORD en Render).
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = ""
+    if request.method == "POST":
+        clave = os.environ.get("APP_PASSWORD", "")
+        if clave and hmac.compare_digest(request.form.get("clave", ""), clave):
+            session.clear()
+            session.permanent = True
+            session["ok"] = True
+            sig = request.args.get("next", "/")
+            return redirect(sig if sig.startswith("/") and not sig.startswith("//") else "/")
+        time.sleep(1)                        # frena intentos repetidos
+        error = "Contraseña incorrecta"
+    return render_template_string(LOGIN_HTML, error=error)
+
+# Cierra la sesión en este dispositivo.
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 # MAPA PROYECTOS
 mapa_proyectos = {
