@@ -1794,7 +1794,9 @@ def api_agenda():
                 return None
 
         # Ventana de 5 días desde la fecha MÁS RECIENTE del Sheet
-        fechas_validas = [d for d in (fecha_dt(f.get("FECHA Y HORA", "")) for f in filas) if d]
+        # Fechas a más de 7 días en el futuro se toman como error de captura y no anclan la ventana.
+        limite = datetime.now().date() + timedelta(days=7)
+        fechas_validas = [d for d in (fecha_dt(f.get("FECHA Y HORA", "")) for f in filas) if d and d <= limite]
         if fechas_validas:
             fecha_tope = max(fechas_validas)
             fecha_piso = fecha_tope - timedelta(days=4)
@@ -1883,7 +1885,7 @@ def api_conteo():
             return jsonify({"conteo": {}, "cat3_desglose": {}, "otras": 0,
                             "sin_clasificar": [], "total": 0})
 
-        PISO = datetime(2026, 4, 1).date()
+        PISO = datetime(2026, 1, 1).date()
         HOY = datetime.now().date()
         # Filtro opcional de conteo
         try:

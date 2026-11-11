@@ -6,8 +6,8 @@
 <title>TRAXA · Conteo de Actividades</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>@font-face{font-family:'Patria';font-weight:300;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Light.otf') format('opentype')}@font-face{font-family:'Patria';font-weight:400;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Regular.otf') format('opentype')}@font-face{font-family:'Patria';font-weight:700;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Bold.otf') format('opentype')}
   :root{
     --bg:#f1e3e3;
     --panel:#FFFFFF;
@@ -33,10 +33,10 @@
       radial-gradient(900px 500px at 0% 110%, rgba(162,30,66,.07), transparent 60%),
       var(--bg);
     color:var(--text);
-    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-family:'Noto Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     -webkit-font-smoothing:antialiased; min-height:100vh; padding:18px;
   }
-  .mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  .mono{font-family:'Noto Sans',sans-serif;font-variant-numeric:tabular-nums}
 
   .topbar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 20px;margin-bottom:16px;
     background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
@@ -45,15 +45,17 @@
     background:linear-gradient(135deg,var(--guinda),var(--guinda-deep));
     display:grid;place-items:center;box-shadow:0 4px 12px -4px rgba(110,21,46,.4),inset 0 1px 0 rgba(255,255,255,.18)}
   .brand .logo svg{width:23px;height:23px}
-  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--text-strong)}
+  .brand h1{font-family:'Patria','Noto Sans',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--text-strong)}
   .brand .sub{font-size:.61rem;letter-spacing:.32em;color:var(--dorado);text-transform:uppercase;margin-top:5px;font-weight:600}
   .topbar .spacer{flex:1 1 40px}
-  .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
+  .ventana{font-family:'Noto Sans',sans-serif;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right;font-weight:700}
   .ventana b{color:var(--text-strong);font-weight:600}
-  .filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted)}
-  .filtro input{font:inherit;color:var(--text);background:var(--board);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  .filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'Noto Sans',sans-serif;font-size:.66rem;color:var(--muted);font-weight:700}
+  #f-reset{background:#a42145;border-color:#a42145;color:#fff}
+  #f-reset:hover{background:#8E1B3A;border-color:#8E1B3A}
+  .filtro input{font:inherit;font-weight:400;color:var(--text);background:var(--board);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
   .refresh{display:inline-flex;align-items:center;gap:8px;background:var(--board);color:var(--text);border:1px solid var(--line);border-radius:9px;
-    padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;cursor:pointer;transition:border-color .18s,background .18s}
+    padding:8px 14px;font-family:'Noto Sans',sans-serif;font-size:.74rem;cursor:pointer;transition:border-color .18s,background .18s}
   .refresh:hover{border-color:var(--guinda);background:#fff}
   .refresh:focus-visible{outline:2px solid var(--guinda);outline-offset:2px}
   .refresh svg{width:14px;height:14px}
@@ -61,7 +63,7 @@
   @keyframes spin{to{transform:rotate(360deg)}}
 
   .banner{display:none;background:rgba(162,30,66,.10);border:1px solid var(--guinda);color:var(--guinda-deep);
-    padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem;font-family:'IBM Plex Mono',monospace}
+    padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem;font-family:'Noto Sans',sans-serif}
 
   .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
   .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);
@@ -82,29 +84,29 @@
   .cards .cat:nth-child(5n+3){--bt:#BC945A}
   .cards .cat:nth-child(5n+4){--bt:#dec9a2}
   .cards .cat:nth-child(5n+5){--bt:#a42145}
-  .cat .num-cat{font-family:'IBM Plex Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.2em;
+  .cat .num-cat{font-family:'Noto Sans',sans-serif;font-size:.6rem;font-weight:700;letter-spacing:.2em;
     color:var(--c);text-transform:uppercase}
-  .cat .nombre{font-family:'Space Grotesk',sans-serif;font-size:.92rem;font-weight:600;line-height:1.35;color:var(--text);flex:1}
-  .cat .valor{font-family:'Space Grotesk',sans-serif;font-size:3rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--c)}
-  .cat .pct{font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:var(--muted-2)}
+  .cat .nombre{font-family:'Patria','Noto Sans',sans-serif;font-size:.92rem;font-weight:600;line-height:1.35;color:var(--text);flex:1}
+  .cat .valor{font-family:'Patria','Noto Sans',sans-serif;font-size:3rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--c)}
+  .cat .pct{font-family:'Noto Sans',sans-serif;font-size:.62rem;color:var(--muted-2)}
 
   .desglose{border-top:1px solid var(--line-soft);padding-top:10px;display:flex;flex-direction:column;gap:7px}
   .desg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.7rem}
   .desg-row .k{color:var(--muted);display:flex;align-items:center;gap:7px;min-width:0}
   .desg-row .k::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--dc);flex:0 0 auto}
-  .desg-row .v{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--text-strong)}
+  .desg-row .v{font-family:'Noto Sans',sans-serif;font-weight:700;color:var(--text-strong)}
 
   .totalbar{display:flex;align-items:center;gap:26px;flex-wrap:wrap;justify-content:center}
   .totalbar .item{display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center}
-  .totalbar .item .t{font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
-  .totalbar .item .n{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;font-weight:700;color:var(--text-strong);line-height:1}
+  .totalbar .item .t{font-family:'Noto Sans',sans-serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
+  .totalbar .item .n{font-family:'Patria','Noto Sans',sans-serif;font-size:1.9rem;font-weight:700;color:var(--text-strong);line-height:1}
   .totalbar .sep{width:1px;height:38px;background:var(--line-soft)}
 
   .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
-  .panel-head h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-strong)}
-  .panel-head .tag{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:var(--muted-2);letter-spacing:.1em;border:1px solid var(--line);padding:3px 8px;border-radius:6px}
+  .panel-head h2{font-family:'Patria','Noto Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-strong)}
+  .panel-head .tag{font-family:'Noto Sans',sans-serif;font-size:.6rem;color:var(--muted-2);letter-spacing:.1em;border:1px solid var(--line);padding:3px 8px;border-radius:6px}
   .sc-list{display:flex;flex-wrap:wrap;gap:8px;max-height:200px;overflow-y:auto}
-  .sc-chip{font-family:'IBM Plex Mono',monospace;font-size:.66rem;background:var(--board);border:1px solid var(--line-soft);
+  .sc-chip{font-family:'Noto Sans',sans-serif;font-size:.66rem;background:var(--board);border:1px solid var(--line-soft);
     border-radius:7px;padding:5px 10px;color:var(--muted)}
   .sc-chip b{color:var(--guinda);font-weight:700;margin-left:6px}
   .empty{color:var(--muted-2);font-size:.8rem;padding:14px 0;text-align:center;width:100%}
@@ -133,7 +135,7 @@
       <label>Desde <input type="date" id="f-desde"></label>
       <label>Hasta <input type="date" id="f-hasta"></label>
       <button class="refresh" id="f-ver">Ver</button>
-      <button class="refresh" id="f-reset">Abril a hoy</button>
+      <button class="refresh" id="f-reset">Último mes</button>
     </div>
     <div class="ventana" id="ventana">—</div>
     <button class="refresh" id="refreshBtn" aria-label="Actualizar desde Google Sheets">
@@ -329,11 +331,13 @@ document.getElementById('refreshBtn').addEventListener('click',e=>{
 });
 
 document.getElementById('f-ver').addEventListener('click',()=>{
-  if(!document.getElementById('f-desde').value||!document.getElementById('f-hasta').value){alert('Elige las dos fechas: Desde y Hasta.');return;}
+  const a=document.getElementById('f-desde').value,b=document.getElementById('f-hasta').value;if((a||b)&&!(a&&b)){alert('Elige las dos fechas: Desde y Hasta.');return;}
   cargar();
 });
 document.getElementById('f-reset').addEventListener('click',()=>{
-  document.getElementById('f-desde').value='';document.getElementById('f-hasta').value='';
+  const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const hoy=new Date(), ini=new Date(); ini.setDate(ini.getDate()-30);
+  document.getElementById('f-desde').value=iso(ini);document.getElementById('f-hasta').value=iso(hoy);
   cargar();
 });
 cargar();
