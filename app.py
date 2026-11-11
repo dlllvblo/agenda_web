@@ -1685,6 +1685,10 @@ def _procesar_buffer(chat_id):
         return
     texto = entry["texto"]
 
+    # Preguntas y comandos. Tara responde y no lo trata como agenda.
+    if tara_consultas.atender(chat_id, texto):
+        return
+
     if not (re.search(r'(?i)agenda', texto)
             or "Fecha:" in texto
             or _CLAVES_RE.search(texto[:200])
@@ -2014,6 +2018,17 @@ def conteo_dashboard():
 @app.route("/propiedad")
 def propiedad_dashboard():
     return render_template("propiedad.html")
+
+# REPORTE EJECUTIVO (las rutas viven en reporte.py)
+import sys
+import reporte
+reporte.registrar(app, sys.modules[__name__])
+
+# MAPA POR MUNICIPIO (mapa.py) Y TARA QUE RESPONDE PREGUNTAS (tara_consultas.py)
+import mapa
+mapa.registrar(app, sys.modules[__name__])
+import tara_consultas
+tara_consultas.registrar(app, sys.modules[__name__])
 
 if __name__ == "__main__":
     app.run(debug=False)

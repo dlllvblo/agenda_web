@@ -158,6 +158,8 @@
       <label>Hasta <input type="date" id="f-hasta"></label>
       <button class="refresh" id="f-ver">Ver</button>
       <button class="refresh" id="f-reset">Últimos 5 días</button>
+      <button class="refresh" id="f-reporte">Generar reporte</button>
+      <button class="refresh" id="f-mapa">Mapa</button>
     </div>
     <div class="ventana" id="ventana">—</div>
     <div class="live"><span class="dot"></span> Auto</div>
@@ -407,6 +409,14 @@ function tick(){document.getElementById('clock').textContent=new Date().toLocale
 tick();setInterval(tick,1000);
 
 buildCharts();
+document.getElementById('f-mapa').addEventListener('click',()=>{
+  const fd=document.getElementById('f-desde').value, fh=document.getElementById('f-hasta').value;
+  location.href=(fd&&fh) ? "/mapa?desde="+fd+"&hasta="+fh : "/mapa";
+});
+document.getElementById('f-reporte').addEventListener('click',()=>{
+  const fd=document.getElementById('f-desde').value, fh=document.getElementById('f-hasta').value;
+  location.href=(fd&&fh) ? "/reporte?desde="+fd+"&hasta="+fh : "/reporte";
+});
 document.getElementById('f-ver').addEventListener('click',()=>{
   if(!document.getElementById('f-desde').value||!document.getElementById('f-hasta').value){alert('Elige las dos fechas: Desde y Hasta.');return;}
   generar().then(render);
