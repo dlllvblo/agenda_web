@@ -50,6 +50,8 @@
   .topbar .spacer{flex:1 1 40px}
   .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
   .ventana b{color:var(--text-strong);font-weight:600}
+  .filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted)}
+  .filtro input{font:inherit;color:var(--text);background:var(--board);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
   .refresh{display:inline-flex;align-items:center;gap:8px;background:var(--board);color:var(--text);border:1px solid var(--line);border-radius:9px;
     padding:8px 14px;font-family:'IBM Plex Mono',monospace;font-size:.74rem;cursor:pointer;transition:border-color .18s,background .18s}
   .refresh:hover{border-color:var(--guinda);background:#fff}
@@ -127,6 +129,12 @@
       <div><h1>Conteo de Actividades</h1><div class="sub">Por Categoría</div></div>
     </div>
     <div class="spacer"></div>
+    <div class="filtro">
+      <label>Desde <input type="date" id="f-desde"></label>
+      <label>Hasta <input type="date" id="f-hasta"></label>
+      <button class="refresh" id="f-ver">Ver</button>
+      <button class="refresh" id="f-reset">Abril a hoy</button>
+    </div>
     <div class="ventana" id="ventana">—</div>
     <button class="refresh" id="refreshBtn" aria-label="Actualizar desde Google Sheets">
       <svg viewBox="0 0 24 24" fill="none" stroke="#8E1B3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -234,7 +242,8 @@ async function cargar(){
   const banner=document.getElementById('banner');
   banner.style.display='none';
   try{
-    const r=await fetch("/api/conteo");
+    const fd=document.getElementById('f-desde').value, fh=document.getElementById('f-hasta').value;
+    const r=await fetch((fd&&fh) ? "/api/conteo?desde="+fd+"&hasta="+fh : "/api/conteo");
     const j=await r.json();
     if(j.error){
       banner.style.display='block';
@@ -319,6 +328,14 @@ document.getElementById('refreshBtn').addEventListener('click',e=>{
   cargar();
 });
 
+document.getElementById('f-ver').addEventListener('click',()=>{
+  if(!document.getElementById('f-desde').value||!document.getElementById('f-hasta').value){alert('Elige las dos fechas: Desde y Hasta.');return;}
+  cargar();
+});
+document.getElementById('f-reset').addEventListener('click',()=>{
+  document.getElementById('f-desde').value='';document.getElementById('f-hasta').value='';
+  cargar();
+});
 cargar();
 </script>
 </body>

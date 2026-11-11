@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: agenda-diaria
+    name: traxa
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app

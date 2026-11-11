@@ -1777,7 +1777,7 @@ def api_agenda():
                 if int(m) > 12 and int(d) <= 12:
                     d, m = m, d
                 dt = datetime.strptime(f"{int(d):02d}/{int(m):02d}/{a}", "%d/%m/%Y")
-                if dt.year < 2025 or dt.year > 2026:
+                if dt.year < 2025 or dt.year > 2030:
                     return None
                 return dt.strftime("%d/%m/%Y")
             except (ValueError, TypeError):
@@ -1798,6 +1798,14 @@ def api_agenda():
         if fechas_validas:
             fecha_tope = max(fechas_validas)
             fecha_piso = fecha_tope - timedelta(days=4)
+            # Filtro opcional del dashboard: /api/agenda?desde=AAAA-MM-DD&hasta=AAAA-MM-DD
+            try:
+                if request.args.get("desde"):
+                    fecha_piso = datetime.strptime(request.args["desde"], "%Y-%m-%d").date()
+                if request.args.get("hasta"):
+                    fecha_tope = datetime.strptime(request.args["hasta"], "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify({"error": "Fecha inválida en el filtro"}), 400
         else:
             fecha_tope = fecha_piso = None
 
@@ -1877,6 +1885,14 @@ def api_conteo():
 
         PISO = datetime(2026, 4, 1).date()
         HOY = datetime.now().date()
+        # Filtro opcional de conteo
+        try:
+            if request.args.get("desde"):
+                PISO = datetime.strptime(request.args["desde"], "%Y-%m-%d").date()
+            if request.args.get("hasta"):
+                HOY = datetime.strptime(request.args["hasta"], "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Fecha inválida en el filtro"}), 400
 
         # Obtiene la fecha de una fila (acepta dd/mm/aaaa o mm/dd/aaaa).
         def fecha_actividad(f):

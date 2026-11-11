@@ -54,6 +54,8 @@
   .topbar .spacer{flex:1 1 40px}
   .ventana{font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted);letter-spacing:.04em;text-align:right}
   .ventana b{color:var(--text-strong);font-weight:600}
+  .filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:'IBM Plex Mono',monospace;font-size:.66rem;color:var(--muted)}
+  .filtro input{font:inherit;color:var(--text);background:var(--board);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
   .live{display:flex;align-items:center;gap:9px;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600}
   .live .dot{width:9px;height:9px;border-radius:50%;background:var(--verde);animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,130,112,.5)}70%{box-shadow:0 0 0 9px rgba(47,130,112,0)}100%{box-shadow:0 0 0 0 rgba(47,130,112,0)}}
@@ -149,6 +151,12 @@
       <div><h1>TRAXA</h1><div class="sub">Tablero de Actividades</div></div>
     </div>
     <div class="spacer"></div>
+    <div class="filtro">
+      <label>Desde <input type="date" id="f-desde"></label>
+      <label>Hasta <input type="date" id="f-hasta"></label>
+      <button class="refresh" id="f-ver">Ver</button>
+      <button class="refresh" id="f-reset">Últimos 5 días</button>
+    </div>
     <div class="ventana" id="ventana">—</div>
     <div class="live"><span class="dot"></span> Auto</div>
     <div class="clock mono" id="clock">--:--:--</div>
@@ -165,7 +173,7 @@
     <div class="panel kpi">
       <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#A8803F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div></div>
       <div class="value mono" id="v-total">0</div>
-      <div class="label">Actividades (últimos 5 días)</div>
+      <div class="label">Actividades (en la ventana)</div>
     </div>
     <div class="panel kpi">
       <div class="top"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#245C4F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18M19 3v18M5 7h14M5 12h14M5 17h14"/></svg></div></div>
@@ -184,7 +192,7 @@
     </div>
 
     <div class="panel span7">
-      <div class="panel-head"><h2>Carga por proyecto ferroviario</h2><span class="tag">ÚLTIMOS 5 DÍAS</span></div>
+      <div class="panel-head"><h2>Carga por proyecto ferroviario</h2><span class="tag">EN LA VENTANA</span></div>
       <div id="load"></div>
     </div>
 
@@ -210,7 +218,7 @@
     </div>
 
     <div class="panel span12">
-      <div class="panel-head"><h2>Actividades por día</h2><span class="tag">VENTANA DE 5 DÍAS</span></div>
+      <div class="panel-head"><h2>Actividades por día</h2><span class="tag">EN LA VENTANA</span></div>
       <div class="chart-wrap h-time"><canvas id="timeChart"></canvas></div>
     </div>
 
@@ -250,7 +258,8 @@ async function generar(){
   const banner=document.getElementById('banner');
   banner.style.display='none';
   try{
-    const r=await fetch("/api/agenda");
+    const fd=document.getElementById('f-desde').value, fh=document.getElementById('f-hasta').value;
+    const r=await fetch((fd&&fh) ? "/api/agenda?desde="+fd+"&hasta="+fh : "/api/agenda");
     const j=await r.json();
     if(j.error){
       banner.style.display='block';
@@ -259,7 +268,7 @@ async function generar(){
       DATA={carga:{},edo:{},dep:{},dias:[],serie:[],agenda:[]};
       return;
     }
-    const diasOrd=Object.keys(j.serie||{}).sort((x,y)=>parseF(x)-parseF(y)).slice(-10);
+    const diasOrd=Object.keys(j.serie||{}).sort((x,y)=>parseF(x)-parseF(y));
     const dias=diasOrd.map(d=>{const f=parseF(d);return isNaN(f)?d:f.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});});
     const serie=diasOrd.map(d=>j.serie[d]);
     const agenda=(j.agenda||[]).map(a=>({hora:a.hora||'--:--', code:a.code||'—', mun:a.mun||'—', act:a.act||'', st:'prog'}));
@@ -301,7 +310,7 @@ function renderKPIs(){
 function renderLoad(){
   const el=document.getElementById('load');el.innerHTML='';
   const codes=Object.keys(DATA.carga).filter(k=>DATA.carga[k]>0);
-  if(!codes.length){el.innerHTML='<div class="empty">Sin actividades en los últimos 5 días.</div>';return;}
+  if(!codes.length){el.innerHTML='<div class="empty">Sin actividades en la ventana.</div>';return;}
   const total=Object.values(DATA.carga).reduce((a,b)=>a+b,0)||1;
   const max=Math.max(...codes.map(k=>DATA.carga[k]))||1;
   const orden=codes.map(code=>{
@@ -396,6 +405,14 @@ function tick(){document.getElementById('clock').textContent=new Date().toLocale
 tick();setInterval(tick,1000);
 
 buildCharts();
+document.getElementById('f-ver').addEventListener('click',()=>{
+  if(!document.getElementById('f-desde').value||!document.getElementById('f-hasta').value){alert('Elige las dos fechas: Desde y Hasta.');return;}
+  generar().then(render);
+});
+document.getElementById('f-reset').addEventListener('click',()=>{
+  document.getElementById('f-desde').value='';document.getElementById('f-hasta').value='';
+  generar().then(render);
+});
 generar().then(render);
 
 //setInterval(()=>generar().then(render), AUTO_REFRESH_MS);
