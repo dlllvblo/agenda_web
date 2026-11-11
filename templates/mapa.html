@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRAXA · Mapa de Actividades</title>
+<link rel="icon" type="image/png" href="/static/icono.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  @font-face{font-family:'Patria';font-weight:400;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Regular.otf') format('opentype')}
+  @font-face{font-family:'Patria';font-weight:700;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Bold.otf') format('opentype')}
+  :root{
+    --bg:#d7d7d7; --panel:#FFFFFF; --panel-2:#FBF7EF; --board:#F7F0E2;
+    --line:#a42145; --line-soft:#ECE0CC;
+    --guinda-deep:#6E152E; --guinda:#8E1B3A; --dorado:#A8803F;
+    --text:#3A2A22; --text-strong:#6E152E; --muted:#5A4636;
+    --radius:14px; --shadow:0 10px 30px -12px rgba(110,21,46,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;padding:18px}
+
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 20px;margin-bottom:16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .logo{width:42px;height:42px;border-radius:10px;flex:0 0 auto;background:linear-gradient(135deg,var(--guinda),var(--guinda-deep));display:grid;place-items:center}
+  .brand .logo svg{width:23px;height:23px}
+  .brand h1{font-family:'Patria','Noto Sans',sans-serif;font-size:1.12rem;font-weight:700;letter-spacing:.04em;line-height:1;color:var(--text-strong)}
+  .brand .sub{font-size:.61rem;letter-spacing:.32em;color:var(--dorado);text-transform:uppercase;margin-top:5px;font-weight:600}
+  .spacer{flex:1 1 20px}
+  .filtro{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.66rem;color:var(--muted);font-weight:700}
+  .filtro input,.filtro select{font:inherit;font-weight:400;color:var(--text);background:var(--board);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  .btn{display:inline-flex;align-items:center;background:var(--board);color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-family:inherit;font-size:.74rem;cursor:pointer;text-decoration:none}
+  .btn:hover{background:#fff}
+  .btn.fuerte{background:#a42145;color:#fff}
+  .btn.fuerte:hover{background:var(--guinda)}
+  .btn:focus-visible,.filtro input:focus-visible,.filtro select:focus-visible{outline:2px solid var(--guinda);outline-offset:2px}
+  .banner{display:none;background:rgba(162,30,66,.10);border:1px solid var(--guinda);color:var(--guinda-deep);padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.8rem}
+
+  .lienzo{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  #mapa{height:calc(100vh - 150px);min-height:480px;background:#DCE6EA;z-index:0}
+  .edo-nombre{font-family:'Noto Sans',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:#9A8A72;text-align:center;white-space:nowrap;pointer-events:none}
+  .lado{display:flex;flex-direction:column;gap:16px}
+  .lado .panel{padding:16px 18px}
+  h2{font-family:'Patria','Noto Sans',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-strong);margin-bottom:12px}
+  .periodo{font-size:.74rem;color:var(--muted);margin-bottom:12px}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .kpi{text-align:center;border:1px solid var(--line-soft);border-radius:9px;padding:9px 4px;background:#fff}
+  .kpi .n{font-family:'Patria','Noto Sans',sans-serif;font-weight:700;font-size:1.5rem;line-height:1;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .kpi .t{font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+  .lista{max-height:330px;overflow-y:auto}
+  .item{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;width:100%;text-align:left;background:none;border:0;
+    border-top:1px solid var(--line-soft);padding:8px 2px;font:inherit;color:inherit;cursor:pointer}
+  .item:first-child{border-top:none}
+  .item:hover{background:var(--board)}
+  .item:focus-visible{outline:2px solid var(--guinda);outline-offset:-2px}
+  .item .r{font-size:.7rem;font-weight:600;color:var(--dorado);text-align:center}
+  .item .m{font-size:.8rem;font-weight:600;min-width:0}
+  .item .m span{display:block;font-weight:400;font-size:.66rem;color:var(--muted)}
+  .item .v{font-family:'Patria','Noto Sans',sans-serif;font-weight:700;font-size:1.05rem;color:var(--text-strong);font-variant-numeric:tabular-nums}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:.66rem;background:var(--board);border:1px solid var(--line-soft);border-radius:7px;padding:4px 8px;color:var(--muted)}
+  .chip b{color:var(--guinda);margin-left:5px}
+  .nota{font-size:.68rem;color:var(--muted);margin-bottom:9px;line-height:1.45}
+  .vacio{color:var(--muted);font-size:.78rem;padding:8px 0}
+
+  /* Leyenda y globo del mapa */
+  .leyenda{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:'Noto Sans',sans-serif;font-size:.68rem;color:var(--text);line-height:1.2}
+  .leyenda b{display:block;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-strong);margin-bottom:6px}
+  .leyenda div{display:flex;align-items:center;gap:7px;margin-top:3px;font-variant-numeric:tabular-nums}
+  .leyenda i{width:16px;height:11px;border-radius:2px;border:1px solid rgba(110,21,46,.35);flex:0 0 auto}
+  .leaflet-popup-content{font-family:'Noto Sans',sans-serif;font-size:.76rem;color:var(--text);margin:12px 14px;min-width:210px}
+  .glb h3{font-family:'Patria','Noto Sans',sans-serif;font-size:1rem;color:var(--text-strong);line-height:1.15}
+  .glb .e{font-size:.68rem;color:var(--muted);margin-bottom:7px}
+  .glb .t{font-weight:700;margin-bottom:6px}
+  .glb .pc{display:inline-block;font-size:.64rem;font-weight:700;color:#fff;border-radius:4px;padding:1px 5px;margin:0 4px 4px 0}
+  .glb ul{list-style:none;margin-top:6px;border-top:1px solid var(--line-soft);padding-top:6px}
+  .glb li{font-size:.68rem;line-height:1.35;margin-bottom:4px}
+  .glb li span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+  @media (max-width:980px){.lienzo{grid-template-columns:1fr}#mapa{height:62vh;min-height:380px}}
+  @media (max-width:560px){body{padding:12px}}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>
+        </svg>
+      </div>
+      <div><h1>Mapa de Actividades</h1><div class="sub">Por Municipio</div></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="filtro">
+      <label>Desde <input type="date" id="f-desde"></label>
+      <label>Hasta <input type="date" id="f-hasta"></label>
+      <label>Proyecto <select id="f-proy"><option value="">Todos</option></select></label>
+      <button class="btn fuerte" id="b-ver">Ver</button>
+    </div>
+    <a class="btn" href="/dashboard">Volver al tablero</a>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="lienzo">
+    <div class="panel"><div id="mapa" role="application" aria-label="Mapa de actividades por municipio"></div></div>
+
+    <div class="lado">
+      <div class="panel">
+        <h2>Resumen</h2>
+        <div class="periodo" id="periodo">Cargando…</div>
+        <div class="kpis">
+          <div class="kpi"><div class="n" id="k-total">0</div><div class="t">Actividades</div></div>
+          <div class="kpi"><div class="n" id="k-mun">0</div><div class="t">Municipios</div></div>
+          <div class="kpi"><div class="n" id="k-sin">0</div><div class="t">Sin ubicar</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Municipios con más actividades</h2>
+        <div class="lista" id="lista"></div>
+      </div>
+      <div class="panel" id="p-sin" style="display:none">
+        <h2>Sin ubicar en el mapa</h2>
+        <p class="nota">Actividades cuyo ESTADO o MUNICIPIO en el Sheet está vacío o no coincide con un municipio del INEGI.</p>
+        <div class="chips" id="sin"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $=id=>document.getElementById(id);
+const PROY={TAP:['AIFA – Pachuca','#8E1B3A'],TMQ:['México – Querétaro','#245C4F'],TQI:['Querétaro – Irapuato','#A8803F'],
+  TSNL:['Saltillo – Nuevo Laredo','#9A7B3C'],TIG:['Irapuato – Guadalajara','#6E152E'],TMLM:['Mazatlán – Los Mochis','#2F8270'],
+  TQSLP:['Querétaro – San Luis Potosí','#B5772E'],TSLPS:['San Luis Potosí – Saltillo','#6E7C58'],TIX:['Trolebús Ixtapaluca','#4F6D8A'],
+  OTRO:['Sin proyecto reconocido','#A8957F']};
+const RAMPA=['#F3D9DF','#E2A3B2','#CC6A83','#A42145','#6E152E'];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=n=>Number(n||0).toLocaleString('es-MX');
+
+const mapa=L.map('mapa',{zoomSnap:.25,minZoom:4}).setView([23.6,-102.5],5);
+mapa.attributionControl.setPrefix(false).addAttribution('Límites estatales y municipales: INEGI');
+mapa.options.maxZoom=11;
+// Fondo propio: contorno de los estados (no depende de ningún servicio de mapas externo).
+mapa.createPane('fondo').style.zIndex=350;
+fetch('/static/estados_mx.geojson').then(r=>r.json()).then(g=>{
+  L.geoJSON(g,{pane:'fondo',interactive:false,style:{fillColor:'#FBF7EF',fillOpacity:1,color:'#B9A98F',weight:1}}).addTo(mapa);
+  g.features.forEach(f=>L.marker([f.properties.lat,f.properties.lng],{pane:'fondo',interactive:false,keyboard:false,
+    icon:L.divIcon({className:'edo-nombre',html:esc(f.properties.NOM_ENT.replace(/ de (Zaragoza|Ocampo|Ignacio de la Llave)$/,'')),iconSize:[120,14]})}).addTo(mapa));
+}).catch(err=>console.error('No se pudo cargar el fondo de estados',err));
+let capa=null, cortes=[], porId={}, capasPorId={};
+const leyenda=L.control({position:'bottomleft'});
+leyenda.onAdd=()=>{const d=L.DomUtil.create('div','leyenda');d.id='leyenda';return d;};
+leyenda.addTo(mapa);
+
+// Límites de clase (hasta 5) repartidos sobre los valores que sí existen.
+function calcularCortes(valores){
+  const u=[...new Set(valores)].sort((a,b)=>a-b);
+  if(u.length<=RAMPA.length)return u;
+  const c=[];
+  for(let i=1;i<=RAMPA.length;i++)c.push(u[Math.ceil(i*u.length/RAMPA.length)-1]);
+  return [...new Set(c)];
+}
+function clase(n){let i=cortes.findIndex(c=>n<=c);return i<0?cortes.length-1:i;}
+function color(n){
+  if(cortes.length<=1)return RAMPA[3];
+  return RAMPA[Math.round(clase(n)*(RAMPA.length-1)/(cortes.length-1))];
+}
+
+function globo(m){
+  const proys=Object.entries(m.proyectos).map(([k,v])=>'<span class="pc" style="background:'+((PROY[k]||PROY.OTRO)[1])+'">'+esc(k)+' '+v+'</span>').join('');
+  const rec=m.recientes.map(a=>'<li><span>'+esc(a.fecha)+(a.hora?' '+esc(a.hora):'')+' · '+esc(a.proyecto)+'</span><br>'+esc(a.actividad)+'</li>').join('');
+  return '<div class="glb"><h3>'+esc(m.municipio)+'</h3><div class="e">'+esc(m.estado)+'</div>'+
+    '<div class="t">'+num(m.n)+(m.n===1?' actividad':' actividades')+'</div>'+proys+
+    (rec?'<ul>'+rec+'</ul>':'')+'</div>';
+}
+
+function pintar(j){
+  porId={};capasPorId={};
+  j.municipios.forEach(m=>porId[m.id]=m);
+  cortes=calcularCortes(j.municipios.map(m=>m.n));
+
+  if(capa)mapa.removeLayer(capa);
+  capa=L.geoJSON(j.geo,{
+    style:f=>({fillColor:color(f.properties.n),fillOpacity:.85,color:'#6E152E',weight:.8}),
+    onEachFeature:(f,l)=>{
+      const m=porId[f.properties.id];
+      capasPorId[f.properties.id]=l;
+      l.bindPopup(()=>globo(m),{maxWidth:300});
+      l.bindTooltip(m.municipio+': '+num(m.n),{sticky:true});
+      l.on('mouseover',()=>l.setStyle({weight:2.2}));
+      l.on('mouseout',()=>l.setStyle({weight:.8}));
+    }
+  }).addTo(mapa);
+  if(j.geo.features.length)mapa.fitBounds(capa.getBounds(),{padding:[24,24],maxZoom:9});
+
+  const v=j.ventana;
+  $('periodo').textContent='Del '+v.desde_txt+' al '+v.hasta_txt+(j.proyecto?' · '+j.proyecto:'');
+  $('k-total').textContent=num(j.total);
+  $('k-mun').textContent=num(j.municipios.length);
+  $('k-sin').textContent=num(j.sin_ubicar);
+
+  const ley=$('leyenda');
+  if(!cortes.length){ley.innerHTML='<b>Actividades</b><div>Sin datos</div>';}
+  else{
+    let ini=1;
+    ley.innerHTML='<b>Actividades por municipio</b>'+cortes.map(c=>{
+      const txt=ini>=c?num(c):num(ini)+' – '+num(c); const h='<div><i style="background:'+color(c)+'"></i>'+txt+'</div>'; ini=c+1; return h;
+    }).join('');
+  }
+
+  const lista=$('lista');
+  lista.innerHTML='';
+  if(!j.municipios.length){lista.innerHTML='<div class="vacio">Sin actividades ubicadas en el periodo.</div>';}
+  j.municipios.slice(0,40).forEach((m,i)=>{
+    const b=document.createElement('button');
+    b.className='item';b.type='button';
+    b.innerHTML='<span class="r">'+String(i+1).padStart(2,'0')+'</span><span class="m">'+esc(m.municipio)+'<span>'+esc(m.estado)+'</span></span><span class="v">'+num(m.n)+'</span>';
+    b.addEventListener('click',()=>{const l=capasPorId[m.id];if(!l)return;mapa.fitBounds(l.getBounds(),{maxZoom:9,padding:[40,40]});l.openPopup();});
+    lista.appendChild(b);
+  });
+
+  $('p-sin').style.display=j.sin_ubicar?'':'none';
+  $('sin').innerHTML=j.no_ubicados.map(x=>'<span class="chip">'+esc(x.nombre)+'<b>×'+x.n+'</b></span>').join('');
+
+  // Selector de proyecto con los que tienen actividades en el rango
+  const sel=$('f-proy'), actual=j.proyecto||'';
+  sel.innerHTML='<option value="">Todos</option>'+j.proyectos.map(p=>'<option value="'+esc(p.clave)+'">'+esc(p.clave)+' · '+esc((PROY[p.clave]||PROY.OTRO)[0])+' ('+p.n+')</option>').join('');
+  sel.value=actual;
+}
+
+async function cargar(){
+  const banner=$('banner');banner.style.display='none';
+  $('periodo').textContent='Cargando…';
+  try{
+    const p=new URLSearchParams();
+    if($('f-desde').value&&$('f-hasta').value){p.set('desde',$('f-desde').value);p.set('hasta',$('f-hasta').value);}
+    if($('f-proy').value)p.set('proyecto',$('f-proy').value);
+    const r=await fetch('/api/mapa'+(p.toString()?'?'+p:''));
+    const j=await r.json();
+    if(j.error){banner.style.display='block';banner.textContent='No se pudo cargar el mapa: '+j.error;$('periodo').textContent='—';return;}
+    $('f-desde').value=j.ventana.desde_iso;$('f-hasta').value=j.ventana.hasta_iso;
+    pintar(j);
+  }catch(err){
+    banner.style.display='block';banner.textContent='No se pudo conectar con el servidor.';$('periodo').textContent='—';console.error(err);
+  }
+}
+
+$('b-ver').addEventListener('click',()=>{
+  const a=$('f-desde').value,b=$('f-hasta').value;
+  if((a||b)&&!(a&&b)){alert('Elige las dos fechas: Desde y Hasta.');return;}
+  cargar();
+});
+$('f-proy').addEventListener('change',cargar);
+
+// Fechas que llegan desde el tablero: /mapa?desde=AAAA-MM-DD&hasta=AAAA-MM-DD
+const q=new URLSearchParams(location.search);
+if(q.get('desde')&&q.get('hasta')){$('f-desde').value=q.get('desde');$('f-hasta').value=q.get('hasta');}
+cargar();
+</script>
+</body>
+</html>

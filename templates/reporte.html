@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRAXA · Reporte ejecutivo</title>
+<link rel="icon" type="image/png" href="/static/icono.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @font-face{font-family:'Patria';font-weight:400;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Regular.otf') format('opentype')}
+  @font-face{font-family:'Patria';font-weight:700;font-style:normal;font-display:swap;src:url('https://framework-gb.cdn.gob.mx/applications/cms/fonts/Patria_Bold.otf') format('opentype')}
+  :root{
+    --bg:#d7d7d7; --papel:#FFFFFF; --crema:#F7F0E2;
+    --guinda:#a42145; --guinda-deep:#6E152E; --verde:#245C4F; --dorado:#A8803F;
+    --text:#3A2A22; --muted:#5A4636; --linea:#E2D3B8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans',system-ui,sans-serif;font-size:13px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:16px}
+
+  /* Barra de controles (no se imprime) */
+  .barra{max-width:8.5in;margin:0 auto 14px;background:var(--papel);border:1px solid var(--guinda);border-radius:12px;
+    padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:700;color:var(--muted)}
+  .barra input[type=date]{font:inherit;font-weight:400;color:var(--text);background:var(--crema);border:1px solid var(--guinda);border-radius:7px;padding:6px 8px}
+  .barra label.chk{font-weight:500;display:flex;align-items:center;gap:6px;cursor:pointer}
+  .barra .hueco{flex:1 1 10px}
+  .btn{font:inherit;font-weight:500;font-size:12px;color:var(--text);background:var(--crema);border:1px solid var(--guinda);
+    border-radius:9px;padding:8px 13px;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn:hover{background:#fff}
+  .btn.fuerte{background:var(--guinda);color:#fff}
+  .btn.fuerte:hover{background:var(--guinda-deep)}
+  .btn:focus-visible,.barra input:focus-visible{outline:2px solid var(--guinda-deep);outline-offset:2px}
+  .aviso{max-width:8.5in;margin:0 auto 14px;display:none;background:rgba(164,33,69,.1);border:1px solid var(--guinda);
+    color:var(--guinda-deep);border-radius:10px;padding:10px 14px}
+
+  /* Hoja del reporte */
+  .hoja{max-width:8.5in;margin:0 auto;background:var(--papel);box-shadow:0 10px 30px -12px rgba(110,21,46,.3)}
+  .cabeza{background:var(--guinda);color:#fff;padding:22px 34px 18px;border-bottom:5px solid var(--dorado)}
+  .cabeza .marca{font-family:'Patria','Noto Sans',serif;font-weight:700;font-size:30px;letter-spacing:.04em;line-height:1}
+  .cabeza .tit{font-size:11px;letter-spacing:.3em;text-transform:uppercase;font-weight:600;margin-top:6px;opacity:.92}
+  .cabeza .periodo{font-family:'Patria','Noto Sans',serif;font-size:17px;margin-top:12px}
+  .cuerpo{padding:22px 34px 26px}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+  .kpi{border:1px solid var(--linea);border-top:3px solid var(--guinda);border-radius:8px;padding:10px 8px;text-align:center}
+  .kpi .n{font-family:'Patria','Noto Sans',serif;font-weight:700;font-size:26px;line-height:1.05;color:var(--guinda-deep);font-variant-numeric:tabular-nums}
+  .kpi .t{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+
+  section{margin-bottom:18px;break-inside:avoid}
+  h2{font-family:'Patria','Noto Sans',serif;font-weight:700;font-size:15px;color:var(--guinda-deep);
+    border-bottom:1.5px solid var(--dorado);padding-bottom:4px;margin-bottom:9px}
+  .resumen{text-align:justify;font-size:13px;line-height:1.6}
+  .dos{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
+  .nota{font-size:10.5px;color:var(--muted);margin-top:5px}
+  .vacio{color:var(--muted);font-size:12px;padding:4px 0}
+
+  /* Filas con barra */
+  .fila{display:grid;grid-template-columns:minmax(0,42%) 1fr 74px;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid #F1E7D6}
+  .fila:last-child{border-bottom:none}
+  .fila .nom{font-size:12px;min-width:0}
+  .fila .nom b{font-weight:700;color:var(--guinda-deep);margin-right:6px}
+  .fila .pista{height:11px;background:var(--crema);border-radius:3px;overflow:hidden}
+  .fila .pista i{display:block;height:100%;background:var(--c,var(--guinda));border-radius:3px}
+  .fila .num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
+  .fila .num span{font-weight:400;color:var(--muted);font-size:10.5px;margin-left:4px}
+  .dos .fila{grid-template-columns:minmax(0,46%) 1fr 62px}
+
+  /* Evolución */
+  .serie{display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid var(--linea);padding-top:16px}
+  .serie .col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+  .serie .col i{display:block;width:100%;max-width:46px;background:var(--guinda);border-radius:3px 3px 0 0;min-height:1px}
+  .serie .col b{font-size:9px;font-weight:600;color:var(--guinda-deep);margin-bottom:2px;font-variant-numeric:tabular-nums}
+  .serie-eje{display:flex;gap:3px;margin-top:3px}
+  .serie-eje span{flex:1 1 0;min-width:0;text-align:center;font-size:8.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+
+  /* Listado */
+  table{width:100%;border-collapse:collapse;font-size:10.5px}
+  th{background:var(--guinda);color:#fff;text-align:left;padding:5px 6px;font-weight:600}
+  td{padding:4px 6px;border-bottom:1px solid #F1E7D6;vertical-align:top}
+  tr{break-inside:avoid}
+  td.c{white-space:nowrap;font-variant-numeric:tabular-nums}
+
+  .pie{border-top:1px solid var(--linea);margin-top:8px;padding-top:9px;display:flex;justify-content:space-between;gap:10px;
+    font-size:10px;color:var(--muted);flex-wrap:wrap}
+
+  @media (max-width:640px){
+    body{padding:8px}.cabeza,.cuerpo{padding-left:16px;padding-right:16px}
+    .kpis{grid-template-columns:repeat(2,1fr)}.dos{grid-template-columns:1fr}
+  }
+  @page{size:letter;margin:12mm}
+  @media print{
+    body{background:#fff;padding:0;font-size:11.5px}
+    .barra,.aviso{display:none!important}
+    .hoja{max-width:none;box-shadow:none}
+    .cabeza{padding:16px 22px 13px}.cuerpo{padding:16px 2px 0}
+    .kpis{grid-template-columns:repeat(5,1fr)}.dos{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+
+  <div class="barra">
+    <label>Desde <input type="date" id="f-desde"></label>
+    <label>Hasta <input type="date" id="f-hasta"></label>
+    <button class="btn" id="b-generar">Generar</button>
+    <label class="chk"><input type="checkbox" id="f-listado"> Incluir listado de actividades</label>
+    <span class="hueco"></span>
+    <button class="btn fuerte" id="b-pdf">Guardar PDF</button>
+    <button class="btn" id="b-word">Descargar Word</button>
+    <a class="btn" href="/dashboard">Volver al tablero</a>
+  </div>
+  <div class="aviso" id="aviso"></div>
+
+  <div class="hoja">
+    <div class="cabeza">
+      <div class="marca">TRAXA</div>
+      <div class="tit">Reporte ejecutivo de actividades</div>
+      <div class="periodo" id="periodo">Cargando…</div>
+    </div>
+    <div class="cuerpo">
+      <div class="kpis" id="kpis"></div>
+
+      <section><h2>Resumen ejecutivo</h2><p class="resumen" id="resumen">—</p></section>
+
+      <section><h2>Actividades por proyecto ferroviario</h2><div id="s-proy"></div></section>
+
+      <section><h2>Actividades por categoría</h2><div id="s-cat"></div>
+        <p class="nota">Una actividad puede contarse en más de una categoría; el criterio es el mismo que en la pantalla de Conteo.</p></section>
+
+      <div class="dos">
+        <section><h2>Distribución por estado</h2><div id="s-edo"></div></section>
+        <section><h2>Dependencias participantes</h2><div id="s-dep"></div></section>
+        <section><h2>Tipo de propiedad</h2><div id="s-prop"></div></section>
+        <section><h2>Municipios con más actividades</h2><div id="s-mun"></div></section>
+      </div>
+
+      <section><h2 id="t-serie">Actividades por día</h2><div id="s-serie"></div></section>
+
+      <section id="sec-listado" style="display:none;break-inside:auto"><h2>Listado de actividades</h2><div id="s-listado"></div></section>
+
+      <div class="pie">
+        <span>Registro Agrario Nacional · Dirección General Territorial</span>
+        <span id="generado"></span>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $=id=>document.getElementById(id);
+const COLORES={TAP:'#8E1B3A',TMQ:'#245C4F',TQI:'#A8803F',TSNL:'#9A7B3C',TIG:'#6E152E',TMLM:'#2F8270',TQSLP:'#B5772E',TSLPS:'#6E7C58',TIX:'#4F6D8A',OTRO:'#A8957F'};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=n=>Number(n||0).toLocaleString('es-MX');
+let D=null;
+
+function consulta(){
+  const p=new URLSearchParams();
+  if($('f-desde').value&&$('f-hasta').value){p.set('desde',$('f-desde').value);p.set('hasta',$('f-hasta').value);}
+  return p;
+}
+
+// Lista de filas con barra proporcional: [{nombre, n, clave?}]
+function barras(id,lista,opc={}){
+  const el=$(id);
+  if(!lista||!lista.length){el.innerHTML='<div class="vacio">Sin registros en el periodo.</div>';return;}
+  const max=Math.max(...lista.map(x=>x.n))||1, total=opc.total||0;
+  el.innerHTML=lista.map(x=>{
+    const color=opc.color?opc.color(x):'';
+    const pct=total?'<span>'+Math.round(x.n/total*100)+'%</span>':'';
+    return '<div class="fila"'+(color?' style="--c:'+color+'"':'')+'>'+
+      '<div class="nom">'+(x.clave?'<b>'+esc(x.clave)+'</b>':'')+esc(x.nombre)+'</div>'+
+      '<div class="pista"><i style="width:'+(x.n/max*100).toFixed(1)+'%"></i></div>'+
+      '<div class="num">'+num(x.n)+pct+'</div></div>';
+  }).join('');
+}
+
+function pintar(){
+  const d=D, v=d.ventana;
+  $('periodo').textContent='Del '+v.desde_txt+' al '+v.hasta_txt;
+  $('generado').textContent='Generado el '+d.generado;
+  document.title='TRAXA · Reporte '+v.desde_iso+' a '+v.hasta_iso;
+
+  const kpis=[[d.total,'Actividades'],[d.proyectos.filter(p=>p.clave!=='OTRO').length,'Proyectos ferroviarios'],
+              [d.estados.length,'Estados'],[d.dependencias.length,'Dependencias'],[d.dias_con_actividad,'Días con actividad']];
+  $('kpis').innerHTML=kpis.map(k=>'<div class="kpi"><div class="n">'+num(k[0])+'</div><div class="t">'+k[1]+'</div></div>').join('');
+
+  $('resumen').textContent=d.resumen||'—';
+  barras('s-proy',d.proyectos,{total:d.total,color:x=>COLORES[x.clave]||COLORES.OTRO});
+  const cats=d.categorias.concat(d.sin_categoria?[{nombre:'Sin categoría asignada',n:d.sin_categoria}]:[]);
+  barras('s-cat',cats,{color:x=>x.nombre==='Sin categoría asignada'?'#A8957F':'#245C4F'});
+  barras('s-edo',d.estados,{total:d.total,color:()=>'#245C4F'});
+  barras('s-dep',d.dependencias,{color:()=>'#A8803F'});
+  barras('s-prop',d.propiedad,{total:d.total,color:x=>x.nombre==='Sin dato'?'#A8957F':'#6E152E'});
+  barras('s-mun',d.municipios,{color:()=>'#4F6D8A'});
+
+  $('t-serie').textContent='Actividades por '+d.serie.unidad;
+  const pts=d.serie.puntos;
+  if(!pts.length){$('s-serie').innerHTML='<div class="vacio">Sin registros en el periodo.</div>';}
+  else{
+    const max=Math.max(...pts.map(p=>p.n))||1, cada=Math.ceil(pts.length/16);
+    $('s-serie').innerHTML='<div class="serie">'+pts.map(p=>'<div class="col"><b>'+(pts.length<=31?p.n:'')+'</b><i style="height:'+(p.n/max*100).toFixed(1)+'%"></i></div>').join('')+'</div>'+
+      '<div class="serie-eje">'+pts.map((p,i)=>'<span>'+(i%cada===0?esc(p.etiqueta):'')+'</span>').join('')+'</div>';
+  }
+  listado();
+  const av=$('aviso');
+  if(d.sin_fecha){av.style.display='block';av.textContent='Aviso: '+d.sin_fecha+' fila(s) del Sheet no tienen una fecha legible y no entran en ningún reporte.';}
+  else{av.style.display='none';}
+}
+
+function listado(){
+  const ver=$('f-listado').checked;
+  $('sec-listado').style.display=ver?'':'none';
+  if(!ver||!D)return;
+  const a=D.actividades;
+  $('s-listado').innerHTML=!a.length?'<div class="vacio">Sin registros en el periodo.</div>':
+    '<table><thead><tr><th>Fecha</th><th>Hora</th><th>Proy.</th><th>Municipio</th><th>Actividad</th></tr></thead><tbody>'+
+    a.map(x=>'<tr><td class="c">'+esc(x.fecha)+'</td><td class="c">'+esc(x.hora)+'</td><td class="c">'+esc(x.proyecto)+'</td><td>'+
+      esc(x.municipio)+'</td><td>'+esc(x.actividad)+'</td></tr>').join('')+'</tbody></table>';
+}
+
+async function cargar(){
+  const av=$('aviso');
+  $('periodo').textContent='Cargando…';$('resumen').textContent='Generando el resumen…';
+  try{
+    const p=consulta();
+    const r=await fetch('/api/reporte'+(p.toString()?'?'+p:''));
+    const j=await r.json();
+    if(j.error){av.style.display='block';av.textContent='No se pudo generar el reporte: '+j.error;$('periodo').textContent='—';return;}
+    D=j;
+    $('f-desde').value=j.ventana.desde_iso;$('f-hasta').value=j.ventana.hasta_iso;
+    pintar();
+  }catch(err){
+    av.style.display='block';av.textContent='No se pudo conectar con el servidor.';$('periodo').textContent='—';console.error(err);
+  }
+}
+
+$('b-generar').addEventListener('click',()=>{
+  if(!$('f-desde').value||!$('f-hasta').value){alert('Elige las dos fechas: Desde y Hasta.');return;}
+  cargar();
+});
+$('f-listado').addEventListener('change',listado);
+$('b-pdf').addEventListener('click',()=>window.print());
+$('b-word').addEventListener('click',()=>{
+  const p=consulta();
+  if($('f-listado').checked)p.set('listado','1');
+  location.href='/reporte.docx'+(p.toString()?'?'+p:'');
+});
+
+// Fechas que llegan desde el tablero: /reporte?desde=AAAA-MM-DD&hasta=AAAA-MM-DD
+const q=new URLSearchParams(location.search);
+if(q.get('desde')&&q.get('hasta')){$('f-desde').value=q.get('desde');$('f-hasta').value=q.get('hasta');}
+cargar();
+</script>
+</body>
+</html>
